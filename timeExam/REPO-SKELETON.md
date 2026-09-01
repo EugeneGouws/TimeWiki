@@ -49,6 +49,7 @@ timeexam/
 ├── README.md
 ├── docs/
 │   ├── DESIGN.md           the spec (from this staging dir)
+│   ├── LITERATURE.md       positioning, citations, terminology
 │   ├── PORT-NOTES.md
 │   └── OPEN-QUESTIONS.md
 │
@@ -95,6 +96,9 @@ timeexam/
 │   │   └── deltas.py           incremental update on a move
 │   │
 │   ├── verify/             independent checker + parent report (§7)
+│   │   ├── checker.py          re-derive clashes, caps, staffing
+│   │   ├── distribution.py     percentiles, CVaR-10%, Jain, Gini, per grade
+│   │   └── student_report.py   per-learner report + why-not-better
 │   └── cli.py              entry point, run modes
 │
 ├── tests/
@@ -166,11 +170,18 @@ verifier is the only safety net.
    it is the fallback claim if the gap will not close.
 6. `score/marking` + `solve/stage_b` — teacher terms with `Z_stu` pinned.
 7. `invigilation/` matcher + feedback.
-8. `verify/` — clash re-derivation plus the per-student fairness report
-   (`DESIGN.md` §7). Not last-minute polish: requirement 3 is a third of
-   the problem, and the report shapes what the objective must be able to
-   explain.
+8. `verify/` — clash re-derivation, the distributional report, and the
+   per-student fairness report (`DESIGN.md` §7). **Not last-minute
+   polish:** requirement 3 is a third of the problem, and the report shapes
+   what the objective must be able to explain.
 9. Export, then UI.
+
+**Two cheap things worth doing alongside step 8**, because both answer
+questions that will definitely be asked: the **price of fairness** (compare
+against the `p=1` schedule) and the **sensitivity table** (perturb `SF` ±1,
+vary window weights). Neither needs new machinery — both are re-runs with
+different constants — and together they are the most disarming artefacts to
+bring to a hostile meeting.
 
 **`heuristic/` is contingency only** — build it if step 4 unexpectedly
 fails, not before. Leave the directory out of the initial repo rather than

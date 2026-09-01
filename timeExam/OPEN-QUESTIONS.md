@@ -67,12 +67,14 @@ be tuned against real output.
 | — | Invigilator pool size | **needed** | See Blocking above; gates whether §4 matters |
 | `K` | Marking turnaround, days | 5? | Ask HODs what turnaround they actually work to |
 | `R` | Candidates per invigilator | **25** | Settled — one invigilator per venue |
-| `SF` | Stress factor per subject, 1–3 | — | Teacher judgement; coarse on purpose — ties are stage-2 headroom |
+| `SF` | Institutional weighting, 1–3 | — | Teacher judgement, governed as policy; coarse on purpose — ties are stage-2 headroom |
 | `MF` | Marking effort per script | `= SF` | Refine once someone times a batch |
 | `λ_w` | Window weights, w = 2,3,4,5 | 3, 2, 1, ? | TimePyBling's proven 3/2/1; the w=5 weight is new. **Integers** |
 | `α` | Fair-share slack | 1.0–1.2 | As an integer ratio `α_num/α_den`, never a float |
 | `p` | Fairness exponent | 2 | Try 1 and 3, compare the worst-off student |
+| `δ` | Stage-A tolerance (§4.0.4) | **0** | A governance decision, not a tuned value — publish whatever it is |
 | — | Front-load weight (§4.4) | low | Raise until marking distribution is acceptable, watch week-1 student load |
+| — | 24-hour paper cap (§2.5) | 2 | Policy — the promise made to parents |
 | — | Session-2 fatigue (§4.3) | — | Fixed per band; sittings start at set clock times |
 | — | Co-freedom weight (§4.5) | low | Watch that it does not starve invigilation cover |
 
@@ -93,6 +95,43 @@ the schedule, which means:
   the exact `Z_stu = Z*` constraint that the whole two-stage guarantee
   rests on.
 
+## Governance decisions — not technical, but they gate the claim
+
+**What are the published load caps?** (`DESIGN.md` §2.5.) "No learner writes
+more than two papers in any 24-hour period" is the shape every real
+institution uses. Someone with authority must set the number, because it is
+the promise made to parents — the objective only chooses among schedules
+that already keep it.
+
+**What is δ?** (`DESIGN.md` §4.0.4.) Default 0 — student fairness held
+absolutely rigid. A small published δ buys teachers a materially better deal
+at a stated, disclosed cost. This is the school's call, not the algorithm's,
+and it should be recorded as a decision with a date and an owner.
+
+**Who owns the criterion, and what is the appeal route?** Procedural
+fairness research and universal institutional practice both say an
+optimisation needs a named accountable person and a documented exception
+process. Neither exists yet.
+
+**Is the criterion published before the timetable is drawn?** This is the
+cheapest thing that makes the whole claim hold, and it cannot be
+retrofitted — the identical rule reads as a standard in advance and as a
+rationalisation afterwards.
+
+## Research follow-ups
+
+**Obtain the official DBE examination-administration policy** (April 2019
+regulations). The literature review could not access it, and it is the
+highest-authority document available for a South African school. Also worth
+having: the DBE Accommodations and Concessions procedural manual, since
+concession candidates are a stakeholder group the design does not model.
+
+**Verify the [V-SNIP] and [RECALL] citations** in `LITERATURE.md` before any
+of them goes into a document that will be scrutinised. The research pass had
+every academic host blocked by an egress proxy, so no full paper was read —
+the ITC-2007 numbers are verified from source files, but most other claims
+rest on search snippets.
+
 ## Design questions, deferrable
 
 **Link `timeedu_core` or stand alone?** Largely settled by the language
@@ -103,9 +142,13 @@ deviation from the suite's "C++/Qt tool on the shared core" plan
 placement) were never an obvious fit for exam objects (paper, sitting,
 cohort) anyway.
 
-**Is CVaR worth it?** `DESIGN.md` §4.1 suggests optionally restricting the
-student term to the worst 10% of students. Try only after the basic version
-produces sane schedules.
+**Is CVaR worth it as an *objective*?** It is already recommended as a
+*reported* statistic (`DESIGN.md` §7) — rigorous, and the most intuitive
+fairness number for a lay audience. Whether to also optimise it is separate;
+try only after the basic version produces sane schedules.
+
+**Should the caps be per grade or school-wide?** Bands have different window
+lengths, so a uniform cap bites unevenly (§4.0.3).
 
 **Are cross-grade papers common or exceptional?** The locked per-grade key
 makes a cross-grade paper into N linked objects. Fine if rare, verbose if
@@ -147,7 +190,14 @@ one of the same subject. Currently `SF` is per subject only.
 - **Invigilation is a second phase** — a post-placement matching, never
   inside the search inner loop (§6).
 - Student fairness is measured against a per-student baseline, not a global
-  threshold (§4.1).
+  threshold (§4.1). `D_s` is the **band window length**, not the number of
+  days the student writes — pinned deliberately, justification in §4.1.
+- **`SF` is an institutional weighting, never "difficulty"** — a declared
+  relative preparation-and-recovery burden, governed like policy (§1.3).
+- **Never claim "the optimal timetable"** — only "provably optimal with
+  respect to the published fairness criterion" (§4.0.2).
+- The objective value is **"total excess over entitlement"**, never "total
+  unfairness" (§4.1).
 - **The schedule must be provably optimal**, so the primary method is exact
   (CP-SAT), not local search. A heuristic can supply incumbents and act as
   fallback, but never as the claim (§5).

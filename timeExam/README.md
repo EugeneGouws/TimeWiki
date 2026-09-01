@@ -28,13 +28,16 @@ file the settled outcome properly, and this directory goes away.
 
 ## Reading order
 
-1. **`DESIGN.md`** — the specification. Inputs, data model, the three
-   scores, the objective function, search strategy, invigilation. Start
-   here.
-2. **`PORT-NOTES.md`** — what carries over from TimePyBling, what is
+1. **`DESIGN.md`** — the specification. Inputs, data model, hard
+   constraints, the three scores, the objective, solving strategy,
+   invigilation, and defensibility. Start here.
+2. **`LITERATURE.md`** — where this design sits against published exam-
+   timetabling practice, the citations behind it, and the vocabulary that
+   makes it read as standard. Read before defending anything to anyone.
+3. **`PORT-NOTES.md`** — what carries over from TimePyBling, what is
    deliberately dropped, and the inherited bug list.
-3. **`REPO-SKELETON.md`** — proposed layout for the new repository.
-4. **`OPEN-QUESTIONS.md`** — everything still undecided, including the
+4. **`REPO-SKELETON.md`** — proposed layout for the new repository.
+5. **`OPEN-QUESTIONS.md`** — everything still undecided, including the
    constants that need real data before they can be set.
 
 ## Decisions locked so far
@@ -43,5 +46,8 @@ file the settled outcome properly, and this directory goes away.
 |---|---|
 | Paper key | `(subjectCode, grade, paperNo)` — strictly per grade |
 | Marking turnaround | Flat rate over K days following the paper |
+| Optimisation | Exact (CP-SAT), lexicographic: students, then teachers |
+| `SF` | Integer 1–3, an institutional weighting — coarse on purpose |
+| Fairness baseline | Per student, against their own band window |
 
 Everything else is open; see `OPEN-QUESTIONS.md`.

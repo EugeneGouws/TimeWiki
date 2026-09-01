@@ -255,7 +255,20 @@ and the design changes fundamentally.
 Per subject: `SF`, `MF`. Duration is **per paper**, from the xlsx — two
 papers of the same subject routinely differ in length.
 
-**`SF` — student stress factor, integer 1–3.** Kept coarse **deliberately**.
+**`SF` — an institutional weighting, integer 1–3.** Kept coarse
+**deliberately**.
+
+**Do not call it "difficulty".** Call it a *declared relative
+preparation-and-recovery burden*, set by the teachers qualified to judge it,
+and govern it like policy — versioned, dated, reviewed. This is not
+presentational: no exam-timetabling paper weights exams by difficulty at all
+(`LITERATURE.md` §6), so `SF` is a genuine extension and cannot be defended
+as standard technique. It **can** be defended as declared policy, which is
+exactly the status ITC-2007 gives its own weights — its
+`[InstitutionalWeightings]` block varies more than 20× across the eight
+competition instances, and one institution sets a student-facing weight to
+zero outright. The field asks each institution to state these numbers rather
+than prescribing them.
 
 An earlier draft of this spec argued for widening to 1–5, on the grounds
 that ties give a search nothing to discriminate between. That was wrong for
@@ -407,22 +420,50 @@ A student never sits two papers in the same sitting. Notes:
   Collapsing students into subject-set classes (§5) collapses these
   constraints too: one class contributes one set, not one per student.
 
-**2. Session-1 papers must fit before session 2** (§1.2). With max paper
+**2. Published load caps — the promise, as distinct from the objective.**
+
+Every real institution encodes exam-load policy as **hard, human-readable
+thresholds**, never as a penalty function (`LITERATURE.md` §6): NC State
+forbids three consecutive exams in 24 hours; Cornell and Wake Forest cap it
+at two; UniTime has a first-class criterion literally named "more than two
+exams a day".
+
+> **The convex objective is the right thing to optimise and the wrong thing
+> to promise.** A governing body can approve, audit and be held to *"no
+> learner writes more than two papers in any 24-hour period."* It cannot do
+> any of those things with *"we minimised the sum of squared normalised
+> window excesses."*
+
+So state caps as constraints and let the objective choose among the
+schedules that already satisfy them. Suggested, to be set as policy:
+
+```
+papers(s, any rolling 24h)  ≤ 2
+SF-load(s, any 2-day window) ≤ CAP_2      // optional, set by policy
+```
+
+These are the sentences that go in front of parents. §4 then picks the
+fairest schedule from those that keep the promise. If a cap proves
+infeasible, that is itself a finding worth surfacing — it means the promise
+cannot be kept with the current window length, which is a governance
+question, not a solver failure.
+
+**3. Session-1 papers must fit before session 2** (§1.2). With max paper
 length 3 h against a 5-hour gap this always holds, so it is an import-time
 validation rather than a live constraint.
 
-**3. Rooms:** `rooms(slot) ≤ V` (§3.3). Rarely binding; kept as a guard
+**4. Rooms:** `rooms(slot) ≤ V` (§3.3). Rarely binding; kept as a guard
 against ceiling waste.
 
-**4. Invigilator availability:** enough free, non-marking-capped teachers to
+**5. Invigilator availability:** enough free, non-marking-capped teachers to
 staff concurrent demand at every instant (§3.3, §3.4). This is the binding
 resource constraint.
 
-**5. Link groups** hold together atomically (§2.4). Structural — enforced by
+**6. Link groups** hold together atomically (§2.4). Structural — enforced by
 representation rather than checked.
 
-Constraints 1 and 2 are per grade; 3 and 4 are cross-grade and evaluated on
-the wall clock.
+Constraints 1–3 are per grade; 4 and 5 are cross-grade and evaluated on the
+wall clock.
 
 ---
 
@@ -609,6 +650,14 @@ precise about when presenting the guarantee: the arithmetic is proven, the
 modelling is a judgement. Calibrating the weights (below) is therefore not
 tuning for taste — it is the part of the claim that is not self-certifying.
 
+**Never say "the optimal timetable".** Say **"provably optimal with respect
+to the published fairness criterion"**, and publish the criterion. Keep the
+two claims separate: the criterion is a policy choice, open to challenge;
+given it, the search is exhaustive and certified, and *that* part is not a
+matter of opinion. The second claim is genuinely rare and valuable — do not
+let overreach on the first contaminate it. `LITERATURE.md` §7 has the
+terminology table.
+
 
 One weighted sum with named, tunable coefficients. **Not** a lexicographic
 cascade — "perfect the 2-day balance, then the 3-day" stalls immediately,
@@ -636,6 +685,41 @@ genuinely denser schedule than a Gr12 with 10 papers over four, and a global
 squeezed student in the school. Using each student's own window makes the
 two directly comparable — which is the entire point of normalising.
 
+> **`D_s` is the most fragile definition in the model — pin it in writing.**
+> It is **the length of that student's band exam window**, not the number of
+> days on which they happen to write. The distinction is material: under the
+> latter, a student with few papers gets a *high* per-window entitlement and
+> can legitimately be crammed. Under the former, the entitlement is a
+> genuine per-day rate. These give materially different timetables, and the
+> justification must exist before anyone asks, not after.
+
+**The objection to pre-empt.** Per-student normalisation implicitly says a
+student with 9 papers may carry proportionally more in every window than one
+with 6. A parent can fairly object: *"my child chose 9 subjects, so your
+model gives you permission to cram them harder."*
+
+The answer, which should be written down and rehearsed: the alternative — an
+absolute cap identical for everyone — is worse. With a fixed exam window it
+is arithmetically impossible for a 9-subject student to meet a 6-subject
+student's absolute standard, so an absolute measure would either be
+permanently violated (leaving the objective insensitive to that student
+entirely) or would force the whole timetable to be shaped around the
+heaviest-loaded students at everyone else's expense. **Report both anyway**:
+normalised excess as the objective, and raw absolute worst-window load as
+the published sanity check (§7).
+
+**Two properties to be able to state, rather than be caught by:**
+
+- **Overlapping windows double-count.** A single heavy day appears in the
+  2-, 3-, 4- and 5-day windows containing it, and is squared in each. The
+  effective penalty on concentration is therefore steeper than "p=2"
+  suggests. Defensible, but know it.
+- **The one-sided hinge is blind below the target.** A student comfortably
+  under fair share in every window contributes exactly zero and is invisible
+  to the optimiser. That is intended — but it means the objective value is
+  **"total excess over entitlement", never "total unfairness"**. Use the
+  precise phrase; the loose one is indefensible under challenge.
+
 Let `W_{s,w}(d)` be the `w`-day sliding-window sum of `L_s` starting at day
 `d`. The excess over fair share, with slack multiplier `α ≥ 1`:
 
@@ -656,7 +740,18 @@ heavy-load students and does nothing for anyone else. Normalising makes
 every student's excess directly comparable, which is what "fair for as many
 students as possible" actually requires.
 
-**`p` is the fairness dial:**
+**This aggregation is *equitable* in the formal sense — say so.** A
+symmetric sum of a convex increasing function is **Schur-convex**, and
+therefore satisfies the **Pigou–Dalton principle of transfers**: moving
+excess from a less-burdened student to a more-burdened one can never improve
+the objective. That places it in the **equitable optimisation** family of
+Ogryczak et al. (2014) (`LITERATURE.md` §4).
+
+This is a free rigour upgrade — identical code, a citable axiomatic claim
+instead of an aesthetic one. It is the difference between "we squared it"
+and a property an OR reader can check.
+
+**`p` is the fairness dial** (it plays the role of α in α-fairness):
 
 | `p` | Behaviour |
 |---|---|
@@ -705,8 +800,24 @@ by their subject choices regardless of placement, so total balance is a
 constant and cannot be optimised. It is not useless, though — it is exactly
 what defines each student's fair baseline above.
 
-`λ_w` seeds from TimePyBling's proven weights: 3/2/1 for w=2/3/4, plus a
-w=5 weight to be determined.
+`λ_w` seeds from TimePyBling's weights: 3/2/1 for w=2/3/4, plus a w=5 weight
+to be determined. Treat these as institutional weightings too — "inherited
+from the previous tool" is not a justification that survives being asked,
+and the sensitivity analysis in §7 is what replaces it.
+
+**The window formulation has better empirical support than the standard
+pairwise one.** Goulas & Megalokonomou (2020) — a lottery-randomised study
+in a Greek *high school*, the closest match in the literature to this
+setting — separates **days between exams** (rest) from **cumulative
+fatigue** as distinct real effects. A pairwise proximity cost cannot express
+the second; a sliding-window load measure can. Worth stating explicitly,
+since the window approach is otherwise the non-standard choice
+(`LITERATURE.md` §6).
+
+**But do not build the case on results.** The same study puts the gain from
+optimal scheduling at ~0.02 standard deviations. Claim improved marks and
+that number will be quoted back. The case is burden, equity and
+defensibility.
 
 ### 4.2 Teacher marking term
 
@@ -764,6 +875,77 @@ systematically a small-subject teacher. The invigilation fairness term in
 §4.2 is what keeps this honest.
 
 ---
+
+### §4.0.3 Cross-grade equity — a hole the sum does not see
+
+**This is a genuine defect in the formulation as first drafted**, surfaced
+by the literature review (`LITERATURE.md` §3). Because the student objective
+is a sum over grade-separable subproblems, **a larger grade dominates the
+total and nothing in the objective notices if one grade is systematically
+worse off than another.** `Z*` can be optimal while being badly lopsided
+across grades.
+
+It matters more than the arithmetic suggests: **grade cohorts are exactly
+the unit parents compare.** Muklason et al. (2017) surveyed students and
+found they judge fairness relative to their *immediate cohort*, not the
+institution — so this is the axis on which complaints actually arrive.
+
+Three defences, all cheap now and expensive after the first parent meeting:
+
+1. **Pin `Z_stu` per grade, not globally** — `Z_stu(g) = Z*_g` for every
+   `g`, which §4.0 already specifies. This matters more than it looked:
+   it stops Stage B shifting burden *between* grades to buy teacher
+   convenience. Keep it, and keep it per grade.
+2. **In the joint Stage A formulation** (§5), do **not** minimise the raw
+   sum across grades — that is precisely where the large grade dominates.
+   Minimise the **grade vector** instead: first the worst grade's
+   *per-capita* normalised objective, then the sum. Comparing grades
+   requires per-capita figures; `Z*_g` itself is not comparable across
+   grades of different sizes.
+3. **Always report per-grade distributions** (§7), whichever formulation is
+   used. Reporting is the backstop when the objective cannot express it.
+
+**Also check for correlation with subject choice.** Students taking rare
+combinations are structurally the most constrained and will systematically
+absorb excess. If the disadvantaged set correlates with anything socially
+salient — a subject stream, a language, a class group — that is a serious
+problem a scalar objective will never surface. Look for it deliberately.
+
+### §4.0.4 The δ-tolerance, and measuring whether Stage B does anything
+
+Two standard criticisms of preemptive lexicographic optimisation, both of
+which apply to us (`LITERATURE.md` §5).
+
+**Pinning `Z_stu = Z*` exactly is brittle.** A timetable worse for students
+by one unit of squared excess — a difference no human could perceive — but
+dramatically better for teachers is excluded by construction. That is hard
+to defend as good decision-making.
+
+**The fix is a published tolerance:**
+
+```
+Z_stu(g) ≤ Z*_g + δ          // δ an integer, published, default 0
+```
+
+**Default `δ = 0`, and expose it as a governance dial, not a tuning knob.**
+That converts an awkward technical question into a strong governance
+position: *we can hold student fairness absolutely rigid, or allow a
+stated, published tolerance to buy teachers a materially better deal — and
+that is the school's call, not the algorithm's.* Whatever δ is set to, it
+is disclosed; a non-zero δ is exactly the amount by which the "no student
+cost" guarantee was relaxed, and it should never be silent.
+
+**Measure whether Stage B achieves anything at all.** The universal
+criticism of preemptive goal programming is that lower priority levels
+often have *no influence* — the higher level pins the solution and the rest
+is decoration. With a sum of squares over integers as level 1, alternative
+optima may be few.
+
+> Report, every run: how much the teacher objective improved between the
+> Stage-A incumbent and the Stage-B optimum. **If that number is ≈ 0, the
+> two-stage design is currently theatre** and the tie set is too small —
+> which is an argument for coarser `SF` (§1.3) or a non-zero δ, and is
+> something to discover before a critic does.
 
 ## §5 Solving — exact, in two lexicographic stages
 
@@ -996,6 +1178,75 @@ window, try each single-paper move that would relieve it, and report what
 each move breaks — a clash, an invigilator shortfall, or another student
 pushed above their own fair share. That is a concrete, checkable answer to
 "why not just move it", generated automatically rather than argued.
+
+### The distributional report — never the objective value alone
+
+A scalar cannot answer a distributional question. Publish, per grade, a
+fixed table (`LITERATURE.md` §4 for why these):
+
+| Statistic | Why |
+|---|---|
+| Mean and median per-student excess | Baseline |
+| 90th / 95th / 99th percentile, and the **maximum** | Where complaints come from |
+| Count of learners with **zero** excess | The good news, honestly bounded |
+| **CVaR at 10%** — mean excess among the worst-off tenth | Rigorous *and* the most intuitive fairness statistic on the list |
+| Raw absolute worst-window load | The sanity check that survives the normalisation objection (§4.1) |
+| **Jain's index** and/or **Gini** | Recognisable one-number diagnostics |
+
+**Reported, never optimised.** Gini in particular is non-convex and
+ambiguous as an objective — very different distributions share a Gini value
+— but everyone has heard of it, so it earns its place as a diagnostic.
+
+**Also report the price of fairness.** Compute the schedule minimising the
+plain sum (`p=1`) and compare: *"our equity-weighted solution costs X% more
+total excess than the average-minimising one, and reduces the worst-off
+learner's excess by Y%."* Bertsimas, Farias & Trichakis (2011) give this
+the standard name and respectability, and it directly answers the question
+management will actually ask: **what did all this fairness cost?**
+
+**And publish a sensitivity analysis.** Perturb each `SF` by ±1; try window
+weights 3/2/1 against 4/3/2/1 and 1/1/1/1. Show which conclusions hold.
+This is the only real answer to *"you made those numbers up"*, and a
+sensitivity table is the single most disarming artefact to bring to a
+hostile meeting. Note that squaring makes the objective quadratic in `SF`,
+so changing one subject's `SF` from 2 to 3 shifts rankings non-linearly —
+these assignments are load-bearing.
+
+### Produce a portfolio, not a single answer
+
+The strongest procedural move available, and it is what Bucknell's deployed
+system actually does (`LITERATURE.md` §2): generate **several** candidate
+schedules — all optimal or within δ — and let management choose.
+
+Management then *owns* the choice, which is worth more than any technical
+argument. It also converts the tie set (§4.0.4) from a technical curiosity
+into the actual product.
+
+### Governance, not just mathematics
+
+Organisational-justice research finds fairness perceptions depend on
+**procedural** and **informational** justice, not only outcomes — and warns
+of a "transparency fallacy" in which dumping technical detail fails to
+improve perceived fairness (`LITERATURE.md`, §7 of the review). Three
+consequences:
+
+- **Publish the criterion before the timetable**, never after. The identical
+  rule reads as a standard in advance and as a rationalisation afterwards.
+- **Name a human owner.** An optimisation with no accountable person reads
+  as unaccountable whatever it proves.
+- **Provide a documented appeal route.** Every institutional policy found
+  pairs its cap with a petition process. An optimisation with no exception
+  mechanism is brittle.
+
+A short plain-language criterion plus a named owner and an appeals route
+will outperform a forty-page model description.
+
+### Stakeholders the design does not yet model
+
+Named so they are omissions rather than oversights: learners with
+**accommodations and concessions** (a formal DBE category); repeaters and
+part-time candidates; invigilators who are not teachers; and **households
+with siblings writing simultaneously** — a real load the model cannot see.
 
 ### Consequences for the build
 
