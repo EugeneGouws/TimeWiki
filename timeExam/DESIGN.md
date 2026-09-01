@@ -763,10 +763,25 @@ preference order:
 Prefer (1). Reach for (2) only with the numbers in hand, and never
 silently.
 
+### Expected tractability
+
+**The sample space is small and CP-SAT is expected to close it quickly.**
+One grade is on the order of tens of papers into tens of slots, collapsed
+further by subject-set classes — a small model by CP-SAT standards. The
+material below is therefore a **safety net, not the expected path**, and
+the step-4 gate in `REPO-SKELETON.md` is a quick confirmation rather than a
+genuine risk.
+
+Two things follow. First, prefer the **exact joint formulation** in Stage A
+(carrying the cross-grade invigilator constraint) over the independent-then-
+relax fallback — if size is not the constraint, take the formulation that
+keeps the guarantee clean. Second, do not build the heuristic path
+speculatively; it earns its place only if this expectation proves wrong.
+
 ### If CP-SAT cannot close the gap
 
-At full scale the model may not prove optimality in acceptable time. Do not
-misreport that as a proof. The graceful degradation:
+Should the expectation fail, do not misreport a gap as a proof. The
+graceful degradation:
 
 - Report the **gap**: incumbent value vs. best bound, i.e. "within `x`% of
   optimal", which is still a far stronger claim than local search offers.
@@ -782,8 +797,10 @@ misreport that as a proof. The graceful degradation:
 
 ### Where the heuristic machinery still earns its place
 
-The local-search design from earlier drafts is **not wasted** — it is
-demoted from primary method to supporting role:
+Given the expectation above, this is **contingency, not planned work** —
+do not build it until something demands it. The local-search design from
+earlier drafts is not wasted, but it is demoted from primary method to
+supporting role:
 
 - producing incumbents to hint CP-SAT and to bound the gap;
 - the fallback if exactness proves unreachable at this school's scale;

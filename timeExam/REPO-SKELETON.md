@@ -89,7 +89,7 @@ timeexam/
 │   │   ├── matcher.py          min-cost bipartite assignment
 │   │   └── feedback.py         imbalance → placement penalty
 │   │
-│   ├── heuristic/          fallback + incumbent provider (§5)
+│   ├── heuristic/          CONTINGENCY only — build if step 4 fails (§5)
 │   │   ├── construct.py        greedy seed
 │   │   ├── moves.py            swap, relocate, move-link-group
 │   │   └── deltas.py           incremental update on a move
@@ -154,21 +154,24 @@ verifier is the only safety net.
 3. `model/baskets` + `score/student` — collapse students to subject-set
    classes, then score a *hand-made* schedule. Verify by hand on a fixture,
    and assert the integer invariants (§4.0.1) in tests from the start.
-4. **`solve/stage_a` on one grade.** The pivotal experiment: does CP-SAT
-   close a single grade to proven optimality in acceptable time? Everything
-   downstream depends on the answer, and it is cheap to find out.
+4. **`solve/stage_a` on one grade.** Confirm CP-SAT closes a single grade
+   to proven optimality. The sample space is small, so this is expected to
+   pass quickly — it is a checkpoint, not a research question. Run it
+   anyway: it is cheap, and everything downstream assumes the answer.
 5. `solve/bounds` — analytic floors for `Z_stu`. Worth doing even if step 4
    succeeds: a matching floor turns a slow proof into an instant one, and
    it is the fallback claim if the gap will not close.
 6. `score/marking` + `solve/stage_b` — teacher terms with `Z_stu` pinned.
 7. `invigilation/` matcher + feedback.
-8. Export, then UI. `heuristic/` only if step 4 says exactness is out of
-   reach.
+8. Export, then UI.
 
-**Steps 2 and 4 are the two go/no-go gates**, and both come before the
-expensive work. Step 2 says whether the objective has room to operate;
-step 4 says whether optimality is provable at this scale. Getting either
-answer late means rebuilding around it.
+**`heuristic/` is contingency only** — build it if step 4 unexpectedly
+fails, not before. Leave the directory out of the initial repo rather than
+stubbing it.
+
+**Step 2 is the real gate**: whether the objective has room to operate
+depends on invigilator slack, and that is not knowable without the numbers.
+Step 4 is a checkpoint on an expectation, not an open question.
 
 **Calibrating the weights is a build step, not a polish step.** The
 optimality claim is only as meaningful as the objective it is proven
