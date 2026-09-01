@@ -51,3 +51,29 @@ file the settled outcome properly, and this directory goes away.
 | Fairness baseline | Per student, against their own band window |
 
 Everything else is open; see `OPEN-QUESTIONS.md`.
+
+## Resume here
+
+For a cold start (new session, new machine, someone else entirely):
+
+- **Branch:** `claude/timeexam-repo-scope-n8kh2l` in the TimeWiki repo.
+  Everything is committed and pushed; nothing of value exists only in a
+  chat log.
+- **State:** design complete and internally consistent. No code written, no
+  repo created yet.
+- **Read:** `DESIGN.md` end to end, then `OPEN-QUESTIONS.md` for what is
+  still unsettled. `LITERATURE.md` before defending anything to anyone.
+- **Next action:** the blocking unknowns in `OPEN-QUESTIONS.md` are data
+  questions for the school, not design questions — invigilator pool size,
+  the 8-day-cycle to calendar mapping, Gr8–9 sitting times, the exam xlsx
+  format, the v3.1 schema delta. Most of the design cannot be validated
+  until those land.
+- **First build step** once they do: `REPO-SKELETON.md` build order, step 2
+  — the staffing diagnostic. It is the gate that determines whether the
+  fairness objective has room to operate at all.
+
+**Reversals recorded on purpose.** The spec argues against three of its own
+earlier drafts — SF widened to 1–5 then returned to 1–3, C++ then Python,
+venues then invigilators as the binding constraint. Those passages are
+deliberate: each records why the first answer was wrong, so the reasoning
+is not re-litigated. Do not tidy them into bare conclusions.
