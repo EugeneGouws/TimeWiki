@@ -49,7 +49,7 @@ resolution and no phase-ordering baggage.
 ## Deliberately dropped
 
 **The single-score model.** `students × SF` conflates student stress,
-marking effort and seating demand. See `DESIGN.md` §0.1.
+marking effort and invigilation demand. See `DESIGN.md` §0.1.
 
 **Phase gating.** TimePyBling's "Phase 0 pinned → Phase 1 red papers with
 5-day spacing, AM only → Phase 2/3 yellow/green fill" hard-wired the

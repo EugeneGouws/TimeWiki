@@ -4,12 +4,6 @@ Grouped by whether they block implementation.
 
 ## Blocking — needed before the relevant module can be written
 
-**Exam seating capacity data.** Not in `timetable.json`; lesson venues are
-teaching rooms, not exam halls. Needs a new input file: venue, seat count,
-invigilators-required ratio. Blocks §3.3 session capacity and all of §6
-invigilation matching. *Until it exists, stub capacity as unlimited and
-build everything else.*
-
 **`timetable.json` v3.1 schema delta.** TimeWiki documents v2.1/v3.0 only.
 Confirm against the live schema before writing the reader — particularly
 whether `student_slots` is still normative and whether `Lesson.subjectCode`
@@ -34,6 +28,7 @@ be tuned against real output.
 | Symbol | What | Seed | How to settle |
 |---|---|---|---|
 | `K` | Marking turnaround, days | 5? | Ask HODs what turnaround they actually work to |
+| `R` | Candidates per invigilator | 30? | School/exam-board policy — a stated rule, not a tuned value |
 | `SF` | Stress factor per subject, 1–5 | — | Teacher judgement per subject; this is a policy input |
 | `MF` | Marking effort per script | `= SF` | Refine once someone times a batch |
 | `λ_w` | Window weights, w = 2,3,4,5 | 3, 2, 1, ? | TimePyBling's proven 3/2/1; the w=5 weight is new |
@@ -78,6 +73,9 @@ one of the same subject. Currently `SF` is per subject only.
 
 ## Explicitly settled — do not relitigate without reason
 
+- **Seating capacity is out of scope.** No venue input file; slots are not
+  constrained by seat counts. Invigilator demand derives from headcount and
+  `R` instead (`DESIGN.md` §3.3).
 - Paper key is `(subjectCode, grade, paperNo)` — per grade.
 - Marking is consumed at a flat rate over `K` days.
 - Session 2 is a cost, not a gate (`DESIGN.md` §4.3).

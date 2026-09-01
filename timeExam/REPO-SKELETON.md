@@ -57,13 +57,12 @@ timeexam/
 │   │   ├── timetable_reader   timetable.json v3.1 → model
 │   │   ├── paper_reader       exam xlsx → papers
 │   │   ├── constants_reader   constants/*.json
-│   │   ├── seating_reader     venue capacity (blocked — see OPEN-QUESTIONS)
 │   │   └── writer             schedule → JSON + xlsx export
 │   │
 │   ├── score/              pure, no I/O — the heart of the thing
 │   │   ├── student_load       L_s(d), windows, fair baselines
 │   │   ├── marking_load       M(t,p), backlog B_t(d)
-│   │   ├── capacity           session seat/invigilator demand
+│   │   ├── demand             invigilators needed per slot (§3.3)
 │   │   ├── objective          weighted sum of all terms
 │   │   └── deltas             incremental update on a move
 │   │
@@ -100,7 +99,7 @@ over randomised inputs. Treat a failure here as a correctness bug, not a
 tuning issue.
 
 **`verify/` must share no code with `score/`.** An independent checker that
-re-derives clashes, capacity violations and load statistics from the output
+re-derives clashes, invigilation shortfalls and load statistics from output
 schedule alone. This is a suite-wide principle — `ClashDetector` as an
 independent verifier is the one concept the timemath project imported across
 its firewall from TimeEduSuite

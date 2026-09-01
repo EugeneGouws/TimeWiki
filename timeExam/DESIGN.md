@@ -13,10 +13,10 @@ drives most of the design decisions below. Five changes from the original
 brief, each with its reason:
 
 1. **`students × SF` is split into three separate quantities.** Cohort size
-   drives marking effort and seating; it has no bearing on how stressed an
-   individual student is. Collapsed into one number, the "two conflicting
-   heuristics" are actually one quantity and a cohort-scaled multiple of
-   it — they cannot genuinely trade off against each other. See §3.
+   drives marking effort and invigilation demand; it has no bearing on how
+   stressed an individual student is. Collapsed into one number, the "two
+   conflicting heuristics" are actually one quantity and a cohort-scaled
+   multiple of it — they cannot genuinely trade off. See §3.
 2. **SF splits into SF (write stress) and MF (marking effort).** Maths P1
    is high-stress to write and fast to mark; History is moderate to write
    and slow to mark. One number cannot carry both, and these are exactly
@@ -57,19 +57,22 @@ weighted terms rather than rules (§4.4, §4.5):
 | Timetable | `timetable.json` **v3.1** | Student/teacher/lesson data |
 | Papers | xlsx | Papers written, per grade per subject |
 | Constants | `constants/subjects.*` | `SF`, `MF`, duration per subject |
-| Seating | **not yet sourced** | See below |
 
 **Schema version caution.** TimeWiki documents `timetable.json` at v2.1/v3.0
 (`wiki/concepts/json-timetable-schema.md`). v3.1 is newer than anything
 ingested here, so the delta is unknown. Confirm the live schema before
 implementing the reader; do not assume the documented shape is current.
 
-**Missing input.** Exam venue and seating capacity is not in
-`timetable.json`. Lessons carry a *teaching* venue, which is not the same
-quantity as exam seating — exam venues are typically halls, with a seat
-count and an invigilator-per-N-candidates ratio. This needs a third input
-file that does not exist yet. Until it does, session capacity (§3.3) cannot
-be checked and must be stubbed.
+**Seating capacity is out of scope.** Exam venue seat counts are not
+modelled: the school knows its halls hold a grade, and the scheduler does
+not need to prove it. No venue input file is required, and no seating
+constraint appears in the objective.
+
+What this does *not* remove is **invigilator demand**, which the brief asks
+for explicitly. Demand derives from candidate headcount and a ratio
+constant (§3.3) — no venue data needed. Dropping seating therefore costs
+nothing and unblocks §6, which was otherwise waiting on a file that does
+not exist.
 
 ### Constants file
 
@@ -199,14 +202,23 @@ B_t(d) = Σ  M(t,p)/K     over papers p marked by t
 statement: without a turnaround model the constraint has no meaning, since
 marking is not an instantaneous event tied to the exam session.
 
-### 3.3 Session capacity — per slot
+### 3.3 Invigilator demand — per slot
 
 ```
-C(slot) = Σ |cohort(p)|   for p in slot
+candidates(slot) = Σ |cohort(p)|            for p in slot
+invigilators(slot) = ceil(candidates(slot) / R)
 ```
 
-Checked against seats and invigilator supply. **Blocked on the missing
-seating input** (§1) — stub until that file exists.
+`R` = candidates per invigilator, a constant in `constants/weights.json`.
+
+Seating is out of scope (§1), so this is *not* a capacity constraint on how
+many candidates a slot may hold — it is purely the staffing demand the
+invigilation matching (§6) must meet. A slot is infeasible only when the
+number of teachers available to invigilate it falls below
+`invigilators(slot)`, never because of headcount alone.
+
+This is the one place cohort size legitimately enters the objective, and it
+is why cohort size must not *also* drive student stress (§0.1).
 
 ---
 
@@ -297,7 +309,8 @@ morning).
 
 **Deliberately a cost, not a gate.** The brief specified "only use session 2
 after session 1 is full". A hard gate is brittle — "full" is undefined
-(venue capacity? all grades placed?) — and it creates ordering artefacts
+(all grades placed? invigilators exhausted?) — and it creates ordering
+artefacts
 where the schedule depends on the sequence papers were considered in. A
 penalty achieves the same preference and degrades gracefully when PM
 sessions genuinely are needed.
@@ -366,10 +379,14 @@ teachers to sessions.
 - Cost of assigning teacher `t` to a session on day `d` = their marking
   backlog `B_t(d)` — busy markers get fewer duties.
 - Hard exclusions: own-subject invigilation; backlog over cap.
-- Capacities from the seating file (§1).
+- Demand per slot = `invigilators(slot)` from §3.3.
 
 This is solvable exactly and quickly for a fixed timetable, which is why it
 must not live inside the local-search inner loop.
+
+With seating out of scope, this stage has no unmet input — `R` is a
+constant and everything else derives from the timetable. It can be built as
+soon as the marking model (§3.2) is in place.
 
 **Feedback:** the resulting imbalance re-enters the placement objective
 (§4.2) for a subsequent round. Two or three outer iterations should
@@ -388,7 +405,7 @@ Every requirement from the original brief:
 | 3 | Sessions week by week (Mon–Fri) | §2.4 calendar; §5 — weeks are structure, not processing order |
 | 4 | Constants file, SF per subject as multiplier | §1; widened to 1–5 |
 | 5 | Score = students × SF | §3 — **split into three quantities**, see §0.1 |
-| 6 | Place minimising score for the session | §3.3, §4 |
+| 6 | Place minimising score for the session | §3.3, §4 — seating out of scope, so slot cost is invigilator demand, not seats |
 | 7 | Two conflicting heuristics: marking vs writing | §3.1, §3.2, §4.1, §4.2 |
 | 8 | Balance 2/3/4/5 consecutive days, then week, then totality | §4.1 — totality is constant per student, becomes the fair baseline |
 | 9 | Threshold, spread excess over other students | §4.1 — **convex penalty gives this for free** |
