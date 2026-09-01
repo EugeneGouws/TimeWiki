@@ -37,14 +37,18 @@ cross-grade splits.
 
 **Layered architecture.** TimePyBling enforced pure core → reader → app →
 UI, and the archived notes call this out as a key lesson that "carried to
-C++ ports". `REPO-SKELETON.md` follows it.
+C++ ports". `REPO-SKELETON.md` follows it, with one addition the original
+did not need: `score/` must not depend on `solve/`, so the objective stays
+evaluable on any schedule regardless of what produced it.
 
-**Global local search.** The 200-pass hill-climb over paper swaps was
-horizon-wide, not week-sequential. Keep that property (`DESIGN.md` §5).
+**Horizon-wide search, not week-sequential.** The 200-pass hill-climb swept
+the whole horizon rather than filling week by week. The property carries;
+the *method* does not — the optimality requirement makes CP-SAT the primary
+solver and demotes hill-climbing to a fallback (`DESIGN.md` §5).
 
 **Red/yellow/green as a concept, not a mechanism.** The old difficulty
-labels are subsumed by `SF` — a 1–5 integer is the same idea with more
-resolution and no phase-ordering baggage.
+labels are subsumed by `SF` — a 1–3 integer is the same idea with the
+phase-ordering baggage removed.
 
 ## Deliberately dropped
 
@@ -73,7 +77,7 @@ warning.
 | # | Bug | Relevance to TimeExam |
 |---|---|---|
 | 1 | JSON load duplicates papers (adds instead of replacing) | Load semantics — make load *replace* state explicitly, and test it |
-| 2 | Penalty-breakdown UI dead (`penalty_log` populated, never displayed) | **Build the breakdown view.** With six weighted terms (§4.1–4.5) an unexplainable score is unusable — you cannot tune weights you cannot see |
+| 2 | Penalty-breakdown UI dead (`penalty_log` populated, never displayed) | **Build the breakdown view.** It is now load-bearing: the optimality claim rests on weights being defensible (§4.0.2), and weights cannot be justified against a single aggregate number |
 | 3 | 5-day red spacing enforcement **unverified** | The old tool may never have honoured its own core spacing rule. Do not assume any TimePyBling output was correct; treat it as a UX reference, not a correctness oracle |
 | 4 | Navigate-to-cell unverified | UI only |
 
@@ -115,4 +119,12 @@ Bitset cohorts plus delta evaluation address exactly this.
 **This is a hypothesis, not a finding.** Measure before optimising further;
 if the new build hits the same wall, the assumption was wrong and the real
 profile needs finding.
+
+**The lesson does not transfer to the CP-SAT design.** TimePyBling's
+blocker was a hand-rolled Python inner loop; the interpreter *was* the
+search. Calling into OR-Tools is a different situation entirely, and
+`REPO-SKELETON.md` accordingly recommends Python rather than C++ —
+reversing an earlier draft that read TimePyBling's failure as a verdict on
+the language. It was a verdict on the architecture. The C++ argument only
+returns if the heuristic fallback becomes the primary method.
 

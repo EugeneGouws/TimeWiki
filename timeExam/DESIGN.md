@@ -47,6 +47,30 @@ And one thing the brief did not anticipate:
    length. The §4 objective is really negotiating over teacher-time, not
    space. See §1 and §3.3.
 
+### The structural fact that shapes the algorithm
+
+**A learner belongs to exactly one grade, so the student objective is
+separable by grade.** A student writes only their own grade's papers, so
+their load, their windows and their fair-share baseline involve no other
+grade. The dominant term therefore decomposes into independent per-grade
+subproblems.
+
+**The only cross-grade coupling is teachers** — marking and invigilation —
+**and that is explicitly weighted below the student score.**
+
+This gives a **strict priority order**, not a set of weights to blend:
+
+| Rank | Term | Scope |
+|---|---|---|
+| Hard | Invigilator availability, rooms ≤ `V` | Cross-grade, wall clock |
+| **Stage A** | Student fairness (§4.1) | **Per grade, separable** |
+| **Stage B** | Marking, invigilation, front-load, co-freedom (§4.2–4.5) | Cross-grade |
+
+Stage B optimises **only within the set of stage-A optima** — teacher needs
+are filtered in afterwards without changing the student score (§4.0). The
+schedule must also be **provably optimal**, which rules out local search as
+the primary method and points at CP-SAT (§5).
+
 Two conflicts in the brief that were not stated, and are now explicit
 weighted terms rather than rules (§4.4, §4.5):
 
@@ -142,19 +166,16 @@ against a 40-minute period means Gr10's boundaries fall at 07:30, 08:10,
 *within* a band; across bands, only wall-clock time is common. Use minutes
 for anything that spans bands.
 
-**3. Session 2's start is fixed, not derived.** This corrects §2.4's
-earlier reasoning: because the start times are policy, a long session-1
-paper does not push session 2 later — it simply must **fit**:
+**3. Session 2's start is fixed, not derived.** Because the start times are
+policy, a long session-1 paper does not push session 2 later — it must
+simply fit the 5-hour gap, i.e. `duration ≤ 5 h × 3/4 = 3 h 45`.
 
-```
-occupancy(p) ≤ session2_start − session1_start          // 5 h in both bands
-⇒ duration(p) ≤ 5 h × 3/4 = 3 h 45 min
-```
-
-So it is a hard feasibility check on session-1 papers, and the 5-hour gap
-is evidently sized for a 3-hour paper (240 min occupancy) plus slack. The
-second-sitting penalty (§4.3) is then a fixed per-band fatigue constant,
-not a function of session 1's contents.
+**Max paper length is 3 hours**, so this always holds: 180 min of writing
+is 240 min of occupancy against 300 available, leaving an hour spare. The
+check is therefore an **import-time validation** (reject a paper over 3 h
+as bad data), not a live placement constraint — the search never needs to
+test it. The second-sitting penalty (§4.3) is a fixed per-band fatigue
+constant, not a function of session 1's contents.
 
 **4. Invigilator supply and demand both jump when the juniors start.** The
 season has two regimes:
@@ -219,14 +240,27 @@ and the design changes fundamentally.
 Per subject: `SF`, `MF`. Duration is **per paper**, from the xlsx — two
 papers of the same subject routinely differ in length.
 
-**`SF` — student stress factor, integer 1–5.** The brief specified 1–3;
-widened because with ~7 subjects per student and only three levels, large
-numbers of students tie on score, and ties give local search nothing to
-discriminate between. Widening costs nothing.
+**`SF` — student stress factor, integer 1–3.** Kept coarse **deliberately**.
+
+An earlier draft of this spec argued for widening to 1–5, on the grounds
+that ties give a search nothing to discriminate between. That was wrong for
+this design. Under lexicographic optimisation (§4.0), ties in the student
+score are not a defect — they are the **feasible region the teacher stage
+gets to work in**. A student objective fine enough to order every schedule
+uniquely would leave the second stage nothing to choose between, and
+teacher needs would be unimprovable without damaging student fairness.
+Coarse SF is what buys the headroom.
+
+**The honest trade-off:** a tie asserts that two schedules are *equally
+fair*, and at 1–3 that assertion is coarse — a brutal subject and a
+moderate one may land on the same level, so genuine unfairness can hide
+inside a tie. This is a deliberate choice of teacher headroom over fairness
+resolution, not a free lunch. If real schedules come out visibly unfair
+between tied options, the lever is a finer SF, at the cost of stage-2 room.
 
 `SF` is a per-subject constant, so a student's total stress is fully
 determined by their subject choices. What `SF` deliberately does *not*
-capture is that two SF-5 subjects back to back are worse than their sum —
+capture is that two SF-3 subjects back to back are worse than their sum —
 that is the job of the consecutive-day convolution in §4.1. The two
 mechanisms together are what express "fair".
 
@@ -453,6 +487,67 @@ classes.
 
 ## §4 Objective function
 
+### §4.0 Lexicographic, not weighted — and why
+
+**Requirement: the schedule must be provably optimal.** That constrains the
+whole design, and it is why the student and teacher objectives are ordered
+rather than blended.
+
+**The two stages are strictly lexicographic:**
+
+1. Minimise the student objective `Z_stu`. Solve to **proven** optimality,
+   per grade. Call the result `Z*_g`.
+2. Add `Z_stu(g) = Z*_g` as a **hard constraint** for every grade, then
+   minimise the teacher objective `Z_tch` subject to it.
+
+Stage 2 therefore searches only the set of student-optimal schedules. It
+can never trade a student's fairness for a teacher's convenience, which is
+exactly the stated requirement: teacher needs *filtered in afterwards
+without changing the student score*.
+
+**This does not contradict the weighted-sum advice elsewhere in this spec.**
+Within the student term, the window sizes w ∈ {2,3,4,5} are combined as a
+weighted sum (§4.1) — a lexicographic cascade *there* would stall, since
+each level is satisfiable many ways and gives the next nothing to work
+with. Between student and teacher, lexicographic is right, because the
+priority is genuine and absolute. Different question, different answer.
+
+**Why ties are the point.** Stage 2's freedom is precisely the size of the
+student-optimal set. Coarse `SF` (1–3) produces many ties, and every tie is
+a schedule stage 2 may choose between at zero cost to students. This is a
+deliberate design choice, not a modelling accident — see §1.3.
+
+### §4.0.1 Keep the student objective in exact integers
+
+`Z_stu = Z*` is a hard equality constraint, so it must be **exact**. Any
+floating-point drift makes stage 2 either infeasible or silently permissive.
+
+- `SF` is a small integer; keep every weight (`λ_w`, thresholds) integral.
+- The fair share `Λ_s × w / D_s` is rational — **do not divide.** Multiply
+  through instead, comparing `α_den · W_{s,w}(d) · D_s` against
+  `α_num · Λ_s · w`, with `α` given as a ratio of integers. All comparisons
+  and penalties then stay in integer arithmetic.
+- `φ(x) = max(0, x)^p` over bounded integers is integral, and small enough
+  to tabulate rather than compute.
+
+No floating point anywhere in `Z_stu`.
+
+### §4.0.2 What "optimal" does and does not mean
+
+The proof available here is: **`Z_stu` is minimal over all feasible
+schedules, and `Z_tch` is minimal among those achieving it.** That is a
+real, checkable guarantee and it is what a solver's optimality status
+certifies.
+
+It is *not* a proof that the schedule is the fairest possible in any
+absolute sense — only that it is optimal **with respect to this objective
+function**. If `SF`, `λ_w` or the fair-share model mis-describe real
+stress, the result is provably optimal for the wrong measure. Worth being
+precise about when presenting the guarantee: the arithmetic is proven, the
+modelling is a judgement. Calibrating the weights (below) is therefore not
+tuning for taste — it is the part of the claim that is not self-certifying.
+
+
 One weighted sum with named, tunable coefficients. **Not** a lexicographic
 cascade — "perfect the 2-day balance, then the 3-day" stalls immediately,
 because the first level is satisfiable in many ways and gives the later
@@ -510,17 +605,38 @@ students as possible" actually requires.
 This replaces the brief's explicit "if one student is over threshold, spread
 it over others" mechanic. A convex penalty produces that behaviour for free.
 
-**On "as many students as possible":** the literal objective is a *count* of
-students below their fair share, which is unoptimisable — piecewise
-constant, zero gradient almost everywhere, local search cannot navigate it.
-The convex-excess form above is its usable surrogate: satisfied students
-contribute exactly zero, so minimising it drives students under the line.
+**On "as many students as possible" — and a note that changed.** An earlier
+draft argued the literal objective (a *count* of students below their fair
+share) was unoptimisable: piecewise-constant, no gradient, invisible to
+local search. **That objection dies with CP-SAT.** A count is a sum of
+boolean indicators, which an exact solver handles natively — so the literal
+reading of the goal is directly available:
 
-**Optional refinement — CVaR.** To target the goal more directly, apply the
-term to only the **worst 10% of students** rather than all of them. Still
-convex, still differentiable enough for local search, but it stops spending
-effort on students who are already comfortably fine. Worth trying once the
-basic version works; do not start here.
+```
+maximise  Σ_s  headcount(s) · [ every window of s is within fair share ]
+```
+
+Three options, then, and the choice is a real one:
+
+| Form | Behaviour |
+|---|---|
+| **Convex excess** (above) | Discriminates among failing students — a student 2 over is better than one 10 over. **Default.** |
+| **Count** | Matches the stated goal literally, but is indifferent to *how badly* the failures fail. |
+| **Count, then excess** | Lexicographic: maximise satisfied students, then minimise the remaining excess. Most faithful; costs the most ties. |
+
+Recommend starting with **convex excess** — it captures most of the count's
+intent while still caring about severity — and trying the third only if
+real output shows it sacrificing a few students badly.
+
+> **Every refinement of the student objective eats stage-B headroom.** A
+> finer or more layered `Z_stu` orders more schedules strictly, shrinking
+> the optimal set that teacher needs get to move within (§4.0). This is the
+> same trade-off as coarse `SF` (§1.3), and it applies to every decision in
+> this section: prefer the objective that is *just* discriminating enough.
+
+**Optional refinement — CVaR.** Apply the term to only the **worst 10% of
+students**, so effort is not spent on students already comfortably fine.
+Worth trying once the basic version works; do not start here.
 
 **Note on "balance in totality":** each student's total load `Λ_s` is fixed
 by their subject choices regardless of placement, so total balance is a
@@ -587,37 +703,100 @@ systematically a small-subject teacher. The invigilation fairness term in
 
 ---
 
-## §5 Search
+## §5 Solving — exact, in two lexicographic stages
 
-**Global over the whole horizon.** Weeks are a calendar structure and a
-balance level — never a processing order. Placing week 1, then week 2,
-cannot revisit a week-1 decision that only looks wrong once week 3 lands.
-TimePyBling's hill-climb was already global; do not regress to sequential
-week filling.
+Proving optimality rules out local search as the primary method. Hill
+climbing and annealing return a local optimum **with no bound**: they can
+say "this is the best I found", never "this is the best that exists". If
+the schedule must be provably optimal, the solver must produce a matching
+bound — which means an exact method.
 
-**Construction:** greedy seed, papers in descending `|cohort| × MF`.
+**Use CP-SAT.** OR-Tools is the natural fit: it proves optimality on
+discrete scheduling models, and the sibling [[timemath-project]] already
+runs Python + OR-Tools CP-SAT
+(`wiki/entities/timemath-project.md:13`) with a bounds ladder for exactly
+this kind of argument (`wiki/concepts/bounds-ladder.md`). The institutional
+experience is already in the building.
 
-**Improvement:** local search (hill-climb, or simulated annealing if the
-landscape proves rugged). Moves:
+### Stage A — student optimum, per grade, proven
 
-- swap two papers' slots
-- move a paper to a free slot
-- move a link group atomically (§2.4)
+The student objective is separable by grade (§0), so each grade is its own
+model. Solve each to proven optimality and record `Z*_g`.
 
-**Every move is gated on invigilator availability before it is scored** —
-enough teachers free for `rooms(slot)` posts, none of them over their
-marking-backlog cap (§3.2). Rooms are checked too (`rooms(slot) ≤ V`) but
-will almost always pass (§3.3).
+Grade-level decomposition is what makes exactness realistic: a whole-school
+model would be large and coupled; one grade's papers over one band's window
+is a model CP-SAT can plausibly close.
 
-Keep a running `rooms` count and a free-teacher count per slot so the gate
-is a comparison, not a recomputation, and test it before computing any
-objective delta.
+**Collapse students into subject-set classes first.** Students with
+identical subject sets have identical loads under every schedule, so they
+need not appear separately: group them, and weight each class by its
+headcount. A grade of 200 students typically holds far fewer distinct
+subject combinations, and the model shrinks by that ratio with **no loss of
+exactness** — the objective is unchanged, just factored.
 
-**Incremental delta evaluation is the load-bearing element of this design.**
-Maintain per-student per-day load arrays and per-teacher backlog arrays;
-a move updates only the affected entries. Full re-evaluation per move is
-what made the Python version unusable, and no amount of C++ rescues an
-`O(students × days)` inner loop.
+This is the same insight as [[basket-sdr]] in the sibling project, where
+what matters is the set of *actual* subject combinations rather than all
+pairwise possibilities. Reuse the concept; the wiki page has the reasoning.
+
+### Stage B — teacher optimum within the student optimum
+
+Fix `Z_stu(g) = Z*_g` for every grade as a hard constraint, then minimise
+the teacher objective across all grades jointly (marking balance,
+invigilation fairness, front-loading, departmental co-freedom).
+
+Stage B is where the grades finally meet: it carries the cross-grade hard
+constraints — the invigilator sweep (§3.3) and `rooms ≤ V` — and the
+teacher terms that are the only genuine coupling.
+
+**Note the ordering risk.** Stage A optimises each grade in isolation, so
+the per-grade optima may not be **jointly staffable**. Two remedies, in
+preference order:
+
+1. Carry the cross-grade invigilator constraint in Stage A too, solving the
+   grades **simultaneously but with only the student objective**. Keeps the
+   guarantee exact and is the correct formulation; costs model size.
+2. If that will not close, solve grades independently, then let Stage B
+   relax `Z_stu(g) = Z*_g` to `≤ Z*_g + ε_g` where infeasibility demands
+   it — reporting `ε_g` explicitly, since a non-zero `ε` is precisely the
+   amount by which the "no student cost" guarantee was broken.
+
+Prefer (1). Reach for (2) only with the numbers in hand, and never
+silently.
+
+### If CP-SAT cannot close the gap
+
+At full scale the model may not prove optimality in acceptable time. Do not
+misreport that as a proof. The graceful degradation:
+
+- Report the **gap**: incumbent value vs. best bound, i.e. "within `x`% of
+  optimal", which is still a far stronger claim than local search offers.
+- Feed CP-SAT a good incumbent as a hint to tighten the gap. This is the
+  sanctioned use of hints per `wiki/concepts/warm-start-rejected.md` — from
+  the solver's own heuristic stage on this run's data, never from a prior
+  year's schedule, which that page rejects on evidence.
+- Strengthen the bound analytically rather than searching harder. The
+  bounds-ladder approach from timemath applies: derive a floor for
+  `Z_stu` from structure (each student's own load is fixed, so their
+  windows cannot all be under-full), and a solution meeting the floor is
+  optimal with no search at all.
+
+### Where the heuristic machinery still earns its place
+
+The local-search design from earlier drafts is **not wasted** — it is
+demoted from primary method to supporting role:
+
+- producing incumbents to hint CP-SAT and to bound the gap;
+- the fallback if exactness proves unreachable at this school's scale;
+- fast interactive what-if once a schedule exists.
+
+Its incremental-delta requirement stands for those uses: maintain
+per-student per-day load arrays and per-teacher backlog arrays, update only
+affected entries. Full re-evaluation per move is what made the Python
+version unusable.
+
+**Weeks remain a calendar structure, never a processing order** — under an
+exact method this is automatic, since the solver considers the horizon as a
+whole. It only needs restating if the heuristic path is taken.
 
 ---
 
@@ -672,7 +851,7 @@ Every requirement from the original brief:
 | 1 | Import `timetable.json` v3.1 + exam xlsx | §1 — xlsx also supplies paper duration |
 | 2 | Group students and teachers per subject | §2.2 |
 | 3 | Sessions week by week (Mon–Fri) | §1.2 per-band sittings and nested windows; §2.4 calendar; §5 — weeks are structure, not processing order |
-| 4 | Constants file, SF per subject as multiplier | §1; widened to 1–5 |
+| 4 | Constants file, SF per subject as multiplier | §1 — kept at 1–3; ties are load-bearing (§4.0) |
 | 5 | Score = students × SF | §3 — **split into three quantities**, see §0.1 |
 | 6 | Place minimising score for the session | §3.3 venue/invigilator demand, §4 objective |
 | 7 | Two conflicting heuristics: marking vs writing | §3.1, §3.2, §4.1, §4.2 |

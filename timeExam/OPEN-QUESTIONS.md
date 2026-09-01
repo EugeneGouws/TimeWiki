@@ -67,27 +67,41 @@ be tuned against real output.
 | — | Invigilator pool size | **needed** | See Blocking above; gates whether §4 matters |
 | `K` | Marking turnaround, days | 5? | Ask HODs what turnaround they actually work to |
 | `R` | Candidates per invigilator | **25** | Settled — one invigilator per venue |
-| `SF` | Stress factor per subject, 1–5 | — | Teacher judgement per subject; this is a policy input |
+| `SF` | Stress factor per subject, 1–3 | — | Teacher judgement; coarse on purpose — ties are stage-2 headroom |
 | `MF` | Marking effort per script | `= SF` | Refine once someone times a batch |
-| `λ_w` | Window weights, w = 2,3,4,5 | 3, 2, 1, ? | TimePyBling's proven 3/2/1; the w=5 weight is new |
-| `α` | Fair-share slack multiplier | 1.0–1.2 | Tune until a "fair" schedule is achievable at all |
-| `p` | Fairness exponent | 2 | Try 1 and 3 on real data and compare the worst-off student |
+| `λ_w` | Window weights, w = 2,3,4,5 | 3, 2, 1, ? | TimePyBling's proven 3/2/1; the w=5 weight is new. **Integers** |
+| `α` | Fair-share slack | 1.0–1.2 | As an integer ratio `α_num/α_den`, never a float |
+| `p` | Fairness exponent | 2 | Try 1 and 3, compare the worst-off student |
 | — | Front-load weight (§4.4) | low | Raise until marking distribution is acceptable, watch week-1 student load |
 | — | Session-2 fatigue (§4.3) | — | Fixed per band; sittings start at set clock times |
 | — | Co-freedom weight (§4.5) | low | Watch that it does not starve invigilation cover |
 
-**Tuning needs the penalty-breakdown view** (`PORT-NOTES.md`, inherited bug
-2). Six weighted terms cannot be balanced against a single aggregate number.
-Build the breakdown before attempting to tune.
+**Weight calibration is part of the optimality claim, not decoration.**
+Proving `Z` minimal proves nothing about fairness if `Z` mis-describes
+stress (`DESIGN.md` §4.0.2) — the arithmetic is self-certifying, the
+modelling is not. So the weights need to be defensible to whoever is shown
+the schedule, which means:
+
+- The penalty-breakdown view is a prerequisite, not a nicety
+  (`PORT-NOTES.md`, inherited bug 2) — terms cannot be balanced against a
+  single aggregate number.
+- Only the **stage-B** weights are free to trade against each other. The
+  stage-A student weights (`λ_w`, `α`, `p`) sit above the lexicographic
+  split and set what "optimal" means, so they warrant more scrutiny than
+  anything below.
+- Keep every stage-A weight **integral** (§4.0.1). A rational weight breaks
+  the exact `Z_stu = Z*` constraint that the whole two-stage guarantee
+  rests on.
 
 ## Design questions, deferrable
 
-**Link `timeedu_core` or stand alone?** The core supplies domain model and
-JSON I/O — real leverage — but couples TimeExam's release to core
-versioning, and the core is built around *timetabling*, whose domain objects
-(lesson, timeslot, placement) are not obviously the right ones for
-*examining* (paper, session, cohort). Possible middle path: use the core's
-JSON reader only, keep the exam model native.
+**Link `timeedu_core` or stand alone?** Largely settled by the language
+choice: a Python + CP-SAT solver cannot link the C++ core, so TimeExam
+integrates at the JSON contract instead. Worth recording as a deliberate
+deviation from the suite's "C++/Qt tool on the shared core" plan
+(`REPO-SKELETON.md`), since the core's domain objects (lesson, timeslot,
+placement) were never an obvious fit for exam objects (paper, sitting,
+cohort) anyway.
 
 **Is CVaR worth it?** `DESIGN.md` §4.1 suggests optionally restricting the
 student term to the worst 10% of students. Try only after the basic version
@@ -134,3 +148,14 @@ one of the same subject. Currently `SF` is per subject only.
   inside the search inner loop (§6).
 - Student fairness is measured against a per-student baseline, not a global
   threshold (§4.1).
+- **The schedule must be provably optimal**, so the primary method is exact
+  (CP-SAT), not local search. A heuristic can supply incumbents and act as
+  fallback, but never as the claim (§5).
+- **Student and teacher objectives are lexicographic, not weighted.**
+  Stage A minimises the student score to proven optimality; stage B pins
+  `Z_stu = Z*` and optimises teachers within the tie set (§4.0).
+- **`SF` stays 1–3.** Coarse on purpose: the ties it produces are the
+  headroom stage B works in. An earlier draft argued for 1–5; that was
+  wrong for this design (§1.3).
+- **`Z_stu` is integer-only.** No floating point, or the `= Z*` constraint
+  is unsafe (§4.0.1).
