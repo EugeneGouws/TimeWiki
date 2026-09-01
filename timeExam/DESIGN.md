@@ -10,7 +10,8 @@ invigilation covered.
 
 That goal is a **coverage** objective, not a sum-minimisation one, and it
 drives most of the design decisions below. Five changes from the original
-brief, each with its reason:
+brief, each with its reason, plus one constraint the brief did not
+anticipate:
 
 1. **`students × SF` is split into three separate quantities.** Cohort size
    drives marking effort and invigilation demand; it has no bearing on how
@@ -37,6 +38,15 @@ brief, each with its reason:
    cheaply; evaluating it inside the local-search inner loop would be
    ruinous. See §6.
 
+And one thing the brief did not anticipate:
+
+6. **Venue count is a hard constraint, and probably the dominant one.**
+   With 25 candidates per venue and one invigilator each, a grade-wide
+   paper consumes eight rooms at once. Depending on `V`, the feasible
+   region may be so tight that the fairness objective is only breaking
+   ties. See §1 and §3.3 — establish `V` before investing in weight
+   tuning.
+
 Two conflicts in the brief that were not stated, and are now explicit
 weighted terms rather than rules (§4.4, §4.5):
 
@@ -55,28 +65,45 @@ weighted terms rather than rules (§4.4, §4.5):
 | Input | Source | Notes |
 |---|---|---|
 | Timetable | `timetable.json` **v3.1** | Student/teacher/lesson data |
-| Papers | xlsx | Papers written, per grade per subject |
-| Constants | `constants/subjects.*` | `SF`, `MF`, duration per subject |
+| Papers | xlsx | Papers per grade per subject, plus **duration** each |
+| Constants | `constants/*` | `SF`, `MF` per subject; venue and session constants |
 
 **Schema version caution.** TimeWiki documents `timetable.json` at v2.1/v3.0
 (`wiki/concepts/json-timetable-schema.md`). v3.1 is newer than anything
 ingested here, so the delta is unknown. Confirm the live schema before
 implementing the reader; do not assume the documented shape is current.
 
-**Seating capacity is out of scope.** Exam venue seat counts are not
-modelled: the school knows its halls hold a grade, and the scheduler does
-not need to prove it. No venue input file is required, and no seating
-constraint appears in the objective.
+**Venues are uniform, so no venue file is needed** — just constants:
 
-What this does *not* remove is **invigilator demand**, which the brief asks
-for explicitly. Demand derives from candidate headcount and a ratio
-constant (§3.3) — no venue data needed. Dropping seating therefore costs
-nothing and unblocks §6, which was otherwise waiting on a file that does
-not exist.
+| Constant | Value | Meaning |
+|---|---|---|
+| `VENUE_PAX` | 25 | Maximum candidates per venue |
+| `R` | 25 | Candidates per invigilator — one per venue |
+| `PERIOD` | 40 min | Session granularity |
+| `V` | **unknown** | Number of exam venues available — see below |
+
+Because `R == VENUE_PAX`, invigilators and venues are the same count:
+a paper needs `ceil(|cohort| / 25)` of each, simultaneously, for its whole
+duration.
+
+> **`V` is probably the binding constraint on the entire schedule.** A
+> grade-wide paper of 200 candidates consumes 8 venues and 8 invigilators
+> at once. If the school has ~10 venues, two large papers cannot share a
+> sitting at all, and placement is forced long before any fairness term
+> gets a say. Get this number early — it determines whether the objective
+> function in §4 has any freedom to work with, or whether the problem is
+> really a feasibility search with a fairness tie-break.
+
+**Assumption to confirm:** "exam times in the xlsx" is read here as each
+paper's **duration**, not a pre-assigned date and time. If some papers
+arrive with fixed sittings, they are `pinned` (§2) and the rest schedule
+around them — but if *most* arrive fixed, this is not a scheduling problem
+and the design changes fundamentally.
 
 ### Constants file
 
-Per subject: `SF`, `MF`, `duration`.
+Per subject: `SF`, `MF`. Duration is **per paper**, from the xlsx — two
+papers of the same subject routinely differ in length.
 
 **`SF` — student stress factor, integer 1–5.** The brief specified 1–3;
 widened because with ~7 subjects per student and only three levels, large
@@ -114,9 +141,9 @@ decision).
 *Accepted cost of this choice:* a paper sat by two grades simultaneously —
 which TimePyBling supported natively as a "cross-grade exam schedule" —
 becomes N separate `Paper` objects bound by a hard link group. The
-machinery for this already exists for the AM/PM linkage case (§2.4), so the
-cost is modelling verbosity, not new code. If cross-grade papers turn out to
-be common rather than exceptional, revisit the key.
+machinery for this already exists for the two-sitting linkage case (§2.4),
+so the cost is modelling verbosity, not new code. If cross-grade papers
+turn out to be common rather than exceptional, revisit the key.
 
 ### Cohort derivation
 
@@ -151,14 +178,35 @@ detection)" for exactly this purpose (`raw/sources/rollover.md:20`).
 ### Calendar and link groups
 
 - Horizon: an ordered list of exam **days**, Mon–Fri, grouped into weeks.
-- `Slot = (day, session)`, `session ∈ {AM, PM}`.
+- Each day is a grid of **40-minute periods**.
+- A **sitting** starts on a period boundary. Two sittings per day: session 1
+  and session 2.
+- `Slot = (day, sitting)`. A paper placed in a sitting occupies
+  `ceil(duration / 40)` consecutive periods from that sitting's start.
 - Week index derives from day index; weeks are a *structure*, never a
   processing order (§5).
+
+**Sittings start together, papers end apart.** All papers in a sitting begin
+at the same moment; each runs for its own duration. This is how exam
+sittings actually work, and it has a consequence worth stating:
+
+> **Session 2's start time is determined by session 1's longest paper.**
+> Not by policy — by arithmetic. Put a 3-hour paper in session 1 and
+> session 2 cannot begin until it and the changeover are done.
+
+This is the real reason "use session 2 only when session 1 is full" felt
+right, and it is better expressed as the arithmetic it actually is (§4.3)
+than as a gate.
+
+**Invigilator and venue occupancy is measured in periods**, which finally
+gives invigilation a unit: a teacher watching a 3-hour paper is committed
+for 5 periods, and that is what trades off against their marking backlog.
 
 **Link group** — a set of papers that must be placed together with a fixed
 internal arrangement. Covers three cases with one mechanism:
 
-- two papers on the same day, AM + PM (the brief's explicit requirement)
+- two papers on the same day, session 1 + session 2 (the brief's explicit
+  requirement)
 - a cross-grade paper split across grades by the per-grade key (§2.1)
 - pinned study blocks
 
@@ -202,20 +250,27 @@ B_t(d) = Σ  M(t,p)/K     over papers p marked by t
 statement: without a turnaround model the constraint has no meaning, since
 marking is not an instantaneous event tied to the exam session.
 
-### 3.3 Invigilator demand — per slot
+### 3.3 Venue and invigilator demand — per slot
+
+Demand is **per paper**, then summed, and it must be computed that way:
 
 ```
-candidates(slot) = Σ |cohort(p)|            for p in slot
-invigilators(slot) = ceil(candidates(slot) / R)
+rooms(p)     = ceil(|cohort(p)| / 25)        // venues == invigilators
+rooms(slot)  = Σ rooms(p)     for p in slot
 ```
 
-`R` = candidates per invigilator, a constant in `constants/weights.json`.
+**Do not compute `ceil(Σ|cohort| / 25)` over the slot.** Papers cannot share
+a venue, so two papers of 10 candidates need two rooms, not one. Summing
+the per-paper ceilings is the correct form; ceiling the sum understates
+demand and will produce infeasible schedules.
 
-Seating is out of scope (§1), so this is *not* a capacity constraint on how
-many candidates a slot may hold — it is purely the staffing demand the
-invigilation matching (§6) must meet. A slot is infeasible only when the
-number of teachers available to invigilate it falls below
-`invigilators(slot)`, never because of headcount alone.
+Two constraints follow:
+
+- **Hard:** `rooms(slot) ≤ V` for every slot. This is a genuine capacity
+  constraint and, per §1, likely the binding one.
+- **Staffing:** `rooms(slot)` invigilators must be free for the duration of
+  the sitting — met by the matching in §6, and costed in periods
+  (`rooms(p) × ceil(duration(p)/40)` invigilator-periods).
 
 This is the one place cohort size legitimately enters the objective, and it
 is why cohort size must not *also* drive student stress (§0.1).
@@ -301,19 +356,29 @@ Unlike student load, teacher totals are **not** fixed — invigilation is
 assignable, and marking distribution depends on how cohorts split across
 markers. So totality is genuinely optimisable on the teacher side.
 
-### 4.3 PM session usage
+### 4.3 Second-session usage
 
-A penalty per PM session used, plus a PM multiplier on student stress
-(fatigue is real — an afternoon paper is harder than the same paper in the
-morning).
+A penalty per session-2 sitting used, plus a fatigue multiplier on student
+stress for papers written in it (an afternoon paper is harder than the same
+paper in the morning).
 
 **Deliberately a cost, not a gate.** The brief specified "only use session 2
-after session 1 is full". A hard gate is brittle — "full" is undefined
-(all grades placed? invigilators exhausted?) — and it creates ordering
-artefacts
-where the schedule depends on the sequence papers were considered in. A
-penalty achieves the same preference and degrades gracefully when PM
-sessions genuinely are needed.
+after session 1 is full". A hard gate is brittle — "full" is undefined (all
+grades placed? venues exhausted?) — and it creates ordering artefacts where
+the schedule depends on the sequence papers were considered in. A penalty
+achieves the same preference and degrades gracefully when second sittings
+are genuinely needed.
+
+**The penalty is not arbitrary — derive it from the clock.** Per §2.4,
+session 2 starts after session 1's longest paper finishes, so a long first
+sitting pushes the second one late into the afternoon. Scale the fatigue
+multiplier by that start time rather than picking a constant: a session 2
+starting at 11:00 is barely a penalty; one starting at 15:00 is a real one.
+This also creates the right secondary pressure — it discourages pairing a
+very long session-1 paper with a session-2 sitting at all.
+
+Note this makes §4.3 the one term where paper *duration*, not just `SF`,
+enters student stress.
 
 ### 4.4 Front-loading heavy marking
 
@@ -356,6 +421,14 @@ landscape proves rugged). Moves:
 - move a paper to a free slot
 - move a link group atomically (§2.4)
 
+**Every move is gated on `rooms(slot) ≤ V`** (§3.3) before it is scored.
+With `V` likely binding (§1), most candidate moves will be rejected on this
+test, so check it first and cheaply — keep a running `rooms` count per slot
+and compare before computing any objective delta. If the feasible
+neighbourhood turns out to be very sparse, the search is really a
+feasibility problem with a fairness tie-break, and construction matters far
+more than improvement.
+
 **Incremental delta evaluation is the load-bearing element of this design.**
 Maintain per-student per-day load arrays and per-teacher backlog arrays;
 a move updates only the affected entries. Full re-evaluation per move is
@@ -364,14 +437,14 @@ what made the Python version unusable, and no amount of C++ rescues an
 
 ---
 
-## §6 Invigilation — stage 2
+## §6 Invigilation — second phase
 
 Placement decides *when* papers happen. Invigilation decides *who watches*.
 These are separable, and separating them is what makes the problem
 tractable.
 
 **During placement:** a cheap feasibility surrogate only — free-teacher
-headcount per session ≥ invigilators required. No assignment, no matching.
+headcount for the sitting ≥ `rooms(slot)`. No assignment, no matching.
 
 **After placement:** min-cost bipartite matching (or min-cost flow) of
 teachers to sessions.
@@ -379,14 +452,18 @@ teachers to sessions.
 - Cost of assigning teacher `t` to a session on day `d` = their marking
   backlog `B_t(d)` — busy markers get fewer duties.
 - Hard exclusions: own-subject invigilation; backlog over cap.
-- Demand per slot = `invigilators(slot)` from §3.3.
+- Demand per slot = `rooms(slot)` from §3.3.
+- Duty is costed in **invigilator-periods**, not sittings — a 5-period
+  paper is five times the commitment of a 1-period one, and fairness across
+  teachers must be measured in periods or it will quietly favour whoever
+  draws the short papers.
 
 This is solvable exactly and quickly for a fixed timetable, which is why it
 must not live inside the local-search inner loop.
 
-With seating out of scope, this stage has no unmet input — `R` is a
-constant and everything else derives from the timetable. It can be built as
-soon as the marking model (§3.2) is in place.
+All inputs are constants (`VENUE_PAX`, `R`, `PERIOD`, `V`) or derive from
+the timetable, so this phase can be built as soon as the marking model
+(§3.2) is in place.
 
 **Feedback:** the resulting imbalance re-enters the placement objective
 (§4.2) for a subsequent round. Two or three outer iterations should
@@ -400,17 +477,17 @@ Every requirement from the original brief:
 
 | # | Requirement | Where |
 |---|---|---|
-| 1 | Import `timetable.json` v3.1 + exam xlsx | §1 |
+| 1 | Import `timetable.json` v3.1 + exam xlsx | §1 — xlsx also supplies paper duration |
 | 2 | Group students and teachers per subject | §2.2 |
-| 3 | Sessions week by week (Mon–Fri) | §2.4 calendar; §5 — weeks are structure, not processing order |
+| 3 | Sessions week by week (Mon–Fri) | §2.4 calendar (40-min periods, two sittings/day); §5 — weeks are structure, not processing order |
 | 4 | Constants file, SF per subject as multiplier | §1; widened to 1–5 |
 | 5 | Score = students × SF | §3 — **split into three quantities**, see §0.1 |
-| 6 | Place minimising score for the session | §3.3, §4 — seating out of scope, so slot cost is invigilator demand, not seats |
+| 6 | Place minimising score for the session | §3.3 venue/invigilator demand, §4 objective |
 | 7 | Two conflicting heuristics: marking vs writing | §3.1, §3.2, §4.1, §4.2 |
 | 8 | Balance 2/3/4/5 consecutive days, then week, then totality | §4.1 — totality is constant per student, becomes the fair baseline |
 | 9 | Threshold, spread excess over other students | §4.1 — **convex penalty gives this for free** |
 | 10 | Invigilation vs marking; cannot mark and invigilate | §3.2 backlog model, §6 |
 | 11 | Big subjects mark together; department free together | §4.5 |
 | 12 | Heaviest marking earlier | §4.4 |
-| 13 | Second session, only after firsts are full | §4.3 — **cost, not gate**, with reason |
+| 13 | Second session, only after firsts are full | §4.3 — **cost, not gate**; penalty derived from session 1's finish time |
 | 14 | Link two exams same day (session 1 + 2) | §2.4 link groups; §5 atomic moves |

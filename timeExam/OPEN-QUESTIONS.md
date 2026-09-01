@@ -4,6 +4,26 @@ Grouped by whether they block implementation.
 
 ## Blocking — needed before the relevant module can be written
 
+**How many exam venues (`V`)?** One number, and probably the most
+consequential unknown in the whole design. At 25 candidates per venue, a
+200-candidate grade paper needs 8 venues and 8 invigilators simultaneously.
+If `V` is around 10, two large papers can never share a sitting and the
+schedule is close to forced — which would make the §4 fairness objective a
+tie-breaker rather than the main event, and would change where the
+implementation effort should go (construction and feasibility, not weight
+tuning). Get this before building §4.
+
+**Are venues really uniform at 25?** The design assumes every venue holds
+exactly 25. If there is one hall holding 150 plus a set of classrooms, the
+`rooms(p) = ceil(cohort/25)` model understates capacity badly and a venue
+list becomes necessary after all.
+
+**Does "exam times in the xlsx" mean duration or fixed sittings?** Read as
+duration (`DESIGN.md` §1). If a substantial number of papers arrive with
+dates and times already fixed — externally set national papers, say — then
+most of the schedule is given and the tool's job shifts from optimisation
+to filling gaps around pinned papers.
+
 **`timetable.json` v3.1 schema delta.** TimeWiki documents v2.1/v3.0 only.
 Confirm against the live schema before writing the reader — particularly
 whether `student_slots` is still normative and whether `Lesson.subjectCode`
@@ -27,15 +47,16 @@ be tuned against real output.
 
 | Symbol | What | Seed | How to settle |
 |---|---|---|---|
+| `V` | Exam venues available | **needed** | Count them — see Blocking above; gates whether §4 matters |
 | `K` | Marking turnaround, days | 5? | Ask HODs what turnaround they actually work to |
-| `R` | Candidates per invigilator | 30? | School/exam-board policy — a stated rule, not a tuned value |
+| `R` | Candidates per invigilator | **25** | Settled — one invigilator per venue |
 | `SF` | Stress factor per subject, 1–5 | — | Teacher judgement per subject; this is a policy input |
 | `MF` | Marking effort per script | `= SF` | Refine once someone times a batch |
 | `λ_w` | Window weights, w = 2,3,4,5 | 3, 2, 1, ? | TimePyBling's proven 3/2/1; the w=5 weight is new |
 | `α` | Fair-share slack multiplier | 1.0–1.2 | Tune until a "fair" schedule is achievable at all |
 | `p` | Fairness exponent | 2 | Try 1 and 3 on real data and compare the worst-off student |
 | — | Front-load weight (§4.4) | low | Raise until marking distribution is acceptable, watch week-1 student load |
-| — | PM penalty (§4.3) | — | Set so PM sessions appear only when genuinely needed |
+| — | Session-2 fatigue (§4.3) | — | Scale from session 1's finish time, not a flat constant |
 | — | Co-freedom weight (§4.5) | low | Watch that it does not starve invigilation cover |
 
 **Tuning needs the penalty-breakdown view** (`PORT-NOTES.md`, inherited bug
@@ -73,14 +94,16 @@ one of the same subject. Currently `SF` is per subject only.
 
 ## Explicitly settled — do not relitigate without reason
 
-- **Seating capacity is out of scope.** No venue input file; slots are not
-  constrained by seat counts. Invigilator demand derives from headcount and
-  `R` instead (`DESIGN.md` §3.3).
+- **Venues are uniform at 25 pax, one invigilator each.** So venues and
+  invigilators are the same count: `rooms(p) = ceil(|cohort(p)| / 25)`.
+  No venue file — constants only (`DESIGN.md` §1).
+- **Sessions are 40-minute periods**, two sittings per day; a paper
+  occupies `ceil(duration / 40)` consecutive periods (`DESIGN.md` §2.4).
 - Paper key is `(subjectCode, grade, paperNo)` — per grade.
 - Marking is consumed at a flat rate over `K` days.
 - Session 2 is a cost, not a gate (`DESIGN.md` §4.3).
 - Weeks are calendar structure, not processing order (§5).
-- Invigilation is a post-placement matching, not part of the inner loop
-  (§6).
+- **Invigilation is a second phase** — a post-placement matching, never
+  inside the search inner loop (§6).
 - Student fairness is measured against a per-student baseline, not a global
   threshold (§4.1).
