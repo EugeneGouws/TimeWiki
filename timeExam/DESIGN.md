@@ -80,7 +80,7 @@ implementing the reader; do not assume the documented shape is current.
 | `VENUE_PAX` | 25 | Maximum candidates per venue |
 | `R` | 25 | Candidates per invigilator — one per venue |
 | `PERIOD` | 40 min | Session granularity |
-| `OVERHEAD` | +20 min / hour | Added to writing time — see §1.2 |
+| `OVERHEAD` | +20 min / hour | Added to writing time — see §1.3 |
 | `V` | ample | Rooms for every student at once, plus spares |
 
 Because `R == VENUE_PAX`, invigilators and venues are the same count: a
@@ -100,7 +100,86 @@ Rooms are still counted (§3.3) — they are what *determines* invigilator
 demand — but `rooms(slot) ≤ V` becomes a cheap guard rather than the
 dominant gate.
 
-### §1.2 Duration and occupancy
+### §1.2 Grade bands and sitting times
+
+Sittings are **per grade band, at fixed clock times set by policy** — not a
+single school-wide schedule:
+
+| Band | Session 1 | Session 2 |
+|---|---|---|
+| Gr 12 | 08:00 | 13:00 |
+| Gr 10–11 | 07:30 | 12:30 |
+| Gr 8–9 | later start (times TBC) | |
+
+**Season structure: the windows are nested, ending together.** Seniors
+write for more weeks; juniors start later; **everyone finishes on the same
+day**. The worked example to design against:
+
+```
+week:      1     2     3     4     5     6
+Gr 10–12  [=====================================]   6 weeks
+Gr  8–9               [=======================]     4 weeks
+           ^ seniors only ^      ^ both bands writing ^
+```
+
+So `D_senior ≈ 30` exam days and `D_junior ≈ 20` — which is why the
+fairness baseline is per band (§4.1).
+
+Note the proportions: the overlap phase is **four of the six weeks**. The
+senior-only relief is the minority of the season, not the norm, so the
+concurrent-demand case is the one to design for.
+
+Four consequences, each load-bearing:
+
+**1. Bands overlap in wall-clock time.** Gr12 writing 08:00–12:00 runs
+alongside Gr10 writing 07:30–11:30. They are different slots but they
+compete for the same invigilators at the same moment. Invigilator demand
+therefore **cannot** be summed per slot — see §3.3.
+
+**2. The period grids do not align across bands.** A 30-minute offset
+against a 40-minute period means Gr10's boundaries fall at 07:30, 08:10,
+08:50… and Gr12's at 08:00, 08:40, 09:20… Periods remain a clean unit
+*within* a band; across bands, only wall-clock time is common. Use minutes
+for anything that spans bands.
+
+**3. Session 2's start is fixed, not derived.** This corrects §2.4's
+earlier reasoning: because the start times are policy, a long session-1
+paper does not push session 2 later — it simply must **fit**:
+
+```
+occupancy(p) ≤ session2_start − session1_start          // 5 h in both bands
+⇒ duration(p) ≤ 5 h × 3/4 = 3 h 45 min
+```
+
+So it is a hard feasibility check on session-1 papers, and the 5-hour gap
+is evidently sized for a 3-hour paper (240 min occupancy) plus slack. The
+second-sitting penalty (§4.3) is then a fixed per-band fatigue constant,
+not a function of session 1's contents.
+
+**4. Invigilator supply and demand both jump when the juniors start.** The
+season has two regimes:
+
+| Phase | Juniors are | Junior teachers | Papers to staff |
+|---|---|---|---|
+| Weeks 1–2 | in class | **unavailable** (teaching) | seniors only |
+| Weeks 3–6 | writing | available | seniors **and** juniors |
+
+Supply rises exactly when demand does, and which phase is tighter cannot be
+settled from first principles — weeks 1–2 have lower demand but a reduced
+pool; weeks 3–6 have the full pool but more papers. Measure it. This is the
+first thing the step-2 diagnostic (`REPO-SKELETON.md`) should report, **per
+phase rather than averaged** — an average over the season hides the binding
+case completely.
+
+**One genuine synergy, worth exploiting.** Placing heavy senior papers in
+weeks 1–2 both avoids competing with junior papers *and* satisfies
+"heaviest marking earlier" (§4.4). Two objectives pulling the same way is
+rare in this design — but it still trades against senior student fairness
+(§4.1), since cramming senior papers into two weeks spikes exactly the load
+the fairness term exists to flatten. Tune the front-load weight with this
+specific trade-off in view.
+
+### §1.3 Duration and occupancy
 
 The xlsx gives each paper's **writing time**. A paper occupies its venue
 for longer than that:
@@ -218,7 +297,7 @@ detection)" for exactly this purpose (`raw/sources/rollover.md:20`).
   and session 2.
 - `Slot = (day, sitting)`. A paper placed in a sitting occupies
   `periods(p)` consecutive periods from that sitting's start, where
-  `periods(p)` is computed from occupancy, not raw writing time (§1.2).
+  `periods(p)` is computed from occupancy, not raw writing time (§1.3).
 - Week index derives from day index; weeks are a *structure*, never a
   processing order (§5).
 
@@ -226,14 +305,10 @@ detection)" for exactly this purpose (`raw/sources/rollover.md:20`).
 at the same moment; each runs for its own duration. This is how exam
 sittings actually work, and it has a consequence worth stating:
 
-> **Session 2's start time is determined by session 1's longest paper.**
-> Not by policy — by arithmetic. A 3-hour paper in session 1 occupies 6
-> periods (§1.2), so session 2 cannot begin before then. The turnaround is
-> already inside that figure, since occupancy carries the +20 min/hour.
-
-This is the real reason "use session 2 only when session 1 is full" felt
-right, and it is better expressed as the arithmetic it actually is (§4.3)
-than as a gate.
+> **Session 2 starts at a fixed clock time** (§1.2), so a long session-1
+> paper does not push it later — the paper must simply fit in the gap.
+> With 5 hours between sittings, that caps a session-1 paper at 3 h 45 of
+> writing time. Check it on placement; it is a hard constraint, not a cost.
 
 **Invigilator and venue commitment is measured in periods**, which finally
 gives invigilation a unit: a teacher watching a 3-hour paper is committed
@@ -290,17 +365,33 @@ marking is not an instantaneous event tied to the exam session.
 
 ### 3.3 Venue and invigilator demand — per slot
 
-Demand is **per paper**, then summed, and it must be computed that way:
+Demand is **per paper**, then summed over a wall-clock instant:
 
 ```
-rooms(p)     = ceil(|cohort(p)| / 25)        // venues == invigilators
-rooms(slot)  = Σ rooms(p)     for p in slot
+rooms(p) = ceil(|cohort(p)| / 25)            // venues == invigilators
 ```
 
-**Do not compute `ceil(Σ|cohort| / 25)` over the slot.** Papers cannot share
-a venue, so two papers of 10 candidates need two rooms, not one. Summing
-the per-paper ceilings is the correct form; ceiling the sum understates
-demand and will produce infeasible schedules.
+**Two ways to get this wrong, both of which produce unstaffable schedules:**
+
+**1. Do not compute `ceil(Σ|cohort| / 25)`.** Papers cannot share a venue,
+so two papers of 10 candidates need two rooms, not one. Sum the per-paper
+ceilings; ceiling the sum understates demand.
+
+**2. Do not sum per slot.** Bands overlap in wall-clock time (§1.2) — Gr12
+at 08:00 runs alongside Gr10 from 07:30 — so a per-slot total misses
+concurrent demand from the other band entirely. Demand must be evaluated
+against the clock:
+
+```
+demand(t) = Σ rooms(p)   over papers p with start(p) ≤ t < start(p) + occupancy(p)
+peak(day) = max over t of demand(t)
+```
+
+Compute it with a **sweep line** over interval endpoints — sort the day's
+paper starts and ends, walk them accumulating `rooms(p)`, and take the
+running maximum. That is `O(P log P)` per day, needs no time grid at all,
+and sidesteps the misaligned 30-minute band offset cleanly. Do not build a
+minute-by-minute array to do this; the sweep is simpler and exact.
 
 Two constraints follow:
 
@@ -323,6 +414,41 @@ small papers where teachers are free, not packing them together.
 This is the one place cohort size legitimately enters the objective, and it
 is why cohort size must not *also* drive student stress (§0.1).
 
+### 3.4 Invigilator supply — derived, not assumed
+
+Supply is a **curve over the season and over each day**, not a constant.
+A teacher is available at instant `t` only if they are not teaching then and
+not over their marking cap (§3.2).
+
+Teaching commitments come from `timetable.json`, but mapping them onto the
+exam wall clock needs two things the JSON does not carry:
+
+- **Bell times.** `timeslots` are labels only — `["A1",…,"H7","P1",…,"P4"]`
+  (`raw/sources/timeedusuite-core.md:165`), with no clock times. TimeView
+  already holds them: its reference times table gives start/end per period
+  **per day type** — Normal / Assembly / Test / Long Reg
+  (`raw/sources/timeedusuite-timeview.md:41`). So a day's bell schedule
+  depends on its day type, and that must be an input.
+- **Cycle-to-calendar mapping.** The teaching timetable is an 8-day cycle
+  (8 blocks × 7 periods, `raw/sources/timeedusuite-core.md:53`), not a
+  Mon–Fri week. Knowing which cycle-day a given calendar date is determines
+  who is teaching. Without this mapping, availability cannot be computed at
+  all.
+
+**The junior-teaching effect.** While Gr8–9 are still in class (§1.2), any
+teacher with a junior lesson in that period is unavailable. Derive this from
+the timetable rather than special-casing "junior teachers" — staff are not
+partitioned by grade, and a Maths teacher may hold both Gr9 and Gr12
+classes.
+
+> **An adverse selection worth naming.** The teachers most likely to be free
+> during senior exams are those who teach only senior grades — who are
+> precisely the people marking the senior papers. Teachers with junior loads
+> are busy teaching. So the invigilation pool is biased *against* the staff
+> with the lightest marking, which is the opposite of what §4.2 wants. This
+> sharpens the §4.5 conflict rather than replacing it, and it is the main
+> reason the two-phase split (§6) needs its feedback loop.
+
 ---
 
 ## §4 Objective function
@@ -337,12 +463,21 @@ levels nothing to work with.
 Each student is measured against **their own fair share**, not a global
 threshold.
 
-Let `Λ_s = Σ SF(p)` over all papers student `s` writes, and `D` = number of
-exam days. Student `s`'s fair share of any `w`-day window is:
+Let `Λ_s = Σ SF(p)` over all papers student `s` writes, and `D_s` = the
+number of exam days **in that student's own band window** (§1.2). Student
+`s`'s fair share of any `w`-day window is:
 
 ```
-fair_s(w) = Λ_s × w / D
+fair_s(w) = Λ_s × w / D_s
 ```
+
+**`D_s` is per student, not global — this matters.** The bands' windows are
+nested: seniors write over more weeks, juniors are compressed into fewer,
+and all end together. A Gr9 student with 8 papers in two weeks faces a
+genuinely denser schedule than a Gr12 with 10 papers over four, and a global
+`D` would score the junior as comfortable while they are in fact the most
+squeezed student in the school. Using each student's own window makes the
+two directly comparable — which is the entire point of normalising.
 
 Let `W_{s,w}(d)` be the `w`-day sliding-window sum of `L_s` starting at day
 `d`. The excess over fair share, with slack multiplier `α ≥ 1`:
@@ -502,7 +637,7 @@ teachers to sessions.
   backlog `B_t(d)` — busy markers get fewer duties.
 - Hard exclusions: own-subject invigilation; backlog over cap.
 - Demand per slot = `rooms(slot)` from §3.3.
-- Duty is costed in **invigilator-periods** (from occupancy, §1.2), not
+- Duty is costed in **invigilator-periods** (from occupancy, §1.3), not
   sittings — a 6-period paper is three times the commitment of a 2-period
   one, and fairness across teachers must be measured in periods or it will
   quietly favour whoever draws the short papers.
@@ -536,7 +671,7 @@ Every requirement from the original brief:
 |---|---|---|
 | 1 | Import `timetable.json` v3.1 + exam xlsx | §1 — xlsx also supplies paper duration |
 | 2 | Group students and teachers per subject | §2.2 |
-| 3 | Sessions week by week (Mon–Fri) | §2.4 calendar (40-min periods, two sittings/day); §5 — weeks are structure, not processing order |
+| 3 | Sessions week by week (Mon–Fri) | §1.2 per-band sittings and nested windows; §2.4 calendar; §5 — weeks are structure, not processing order |
 | 4 | Constants file, SF per subject as multiplier | §1; widened to 1–5 |
 | 5 | Score = students × SF | §3 — **split into three quantities**, see §0.1 |
 | 6 | Place minimising score for the session | §3.3 venue/invigilator demand, §4 objective |
@@ -546,5 +681,5 @@ Every requirement from the original brief:
 | 10 | Invigilation vs marking; cannot mark and invigilate | §3.2 backlog model, §6 |
 | 11 | Big subjects mark together; department free together | §4.5 |
 | 12 | Heaviest marking earlier | §4.4 |
-| 13 | Second session, only after firsts are full | §4.3 — **cost, not gate**; penalty derived from session 1's finish time |
+| 13 | Second session, only after firsts are full | §4.3 fatigue cost, not a gate; §1.2 adds a hard fit check (≤ 3 h 45 in session 1) |
 | 14 | Link two exams same day (session 1 + 2) | §2.4 link groups; §5 atomic moves |

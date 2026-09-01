@@ -50,7 +50,8 @@ timeexam/
 ├── src/
 │   ├── model/              pure domain, no I/O, no Qt
 │   │   ├── paper.h/.cpp        Paper, identity, cohort bitset
-│   │   ├── calendar.h/.cpp     days, 40-min periods, sittings, weeks
+│   │   ├── calendar.h/.cpp     days, bands, per-band sittings, weeks
+│   │   ├── bands.h/.cpp        band windows, sitting clock times
 │   │   ├── linkgroup.h/.cpp    composite placeable units
 │   │   └── schedule.h/.cpp     the assignment being optimised
 │   │
@@ -58,12 +59,14 @@ timeexam/
 │   │   ├── timetable_reader   timetable.json v3.1 → model
 │   │   ├── paper_reader       exam xlsx → papers
 │   │   ├── constants_reader   constants/*.json
+│   │   ├── bells_reader       period clock times per day type (TimeView)
 │   │   └── writer             schedule → JSON + xlsx export
 │   │
 │   ├── score/              pure, no I/O — the heart of the thing
 │   │   ├── student_load       L_s(d), windows, fair baselines
 │   │   ├── marking_load       M(t,p), backlog B_t(d)
-│   │   ├── rooms              venues/invigilators per slot (§3.3)
+│   │   ├── rooms              demand sweep-line over the clock (§3.3)
+│   │   ├── supply             teacher availability curve (§3.4)
 │   │   ├── objective          weighted sum of all terms
 │   │   └── deltas             incremental update on a move
 │   │
@@ -122,9 +125,12 @@ verifier is the only safety net.
    the horizon's teacher-periods of supply. This is a few hours' work and
    it answers the question everything else depends on: *how much slack is
    there in teacher time?* Rooms are ample (`DESIGN.md` §1), so this is a
-   staffing calculation, not a space one. If demand approaches supply, the
-   problem is a feasibility search with a fairness tie-break, and steps 3–4
-   should be re-scoped before they are built.
+   staffing calculation, not a space one. **Report it per phase** — weeks
+   1–2 (seniors only, junior teachers tied up) and weeks 3–6 (both bands
+   writing, full pool) are different problems, and averaging them hides the
+   binding one (§1.2). If demand approaches supply in either phase, this is
+   a feasibility search with a fairness tie-break, and steps 3–4 should be
+   re-scoped before they are built.
 3. `score/student_load` + `objective` (student term only) — scoring a
    *hand-made* schedule. Verifiable by hand on a fixture.
 4. `search/` with the student term alone, gated on invigilator supply —

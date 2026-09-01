@@ -12,10 +12,21 @@ larger than the teaching staff, the constraint loosens and §4 has real
 freedom; if it is the teaching staff alone, expect it to bind.
 
 **Can a teacher invigilate during a period they would otherwise teach?**
-Junior grades usually carry on with normal lessons during senior exams. If
+Gr8–9 carry on with normal lessons in weeks 1–2 (`DESIGN.md` §1.2). If
 invigilators must come only from teachers free in that period, supply is
-much tighter than headcount suggests, and `timetable.json` already holds
-what is needed to compute it per period.
+much tighter than headcount suggests. `timetable.json` holds the teaching
+commitments, but two mappings are needed to use them — see below.
+
+**Bell times per day type, and the cycle-to-calendar mapping.** Teaching
+commitments cannot be placed on the exam wall clock without both:
+`timeslots` are bare labels with no times, and the teaching timetable runs
+an 8-day cycle rather than a Mon–Fri week. TimeView already holds the times
+(reference table, per day type: Normal / Assembly / Test / Long Reg), so
+this is an extraction, not new data — but the cycle-to-calendar mapping for
+the exam period still has to come from somewhere. Blocks §3.4.
+
+**Gr8–9 sitting times.** Known to be later than 07:30/12:30, exact times
+outstanding.
 
 **Are venues really uniform at 25?** The design assumes every venue holds
 exactly 25. If there is one hall holding 150 plus a set of classrooms, the
@@ -62,7 +73,7 @@ be tuned against real output.
 | `α` | Fair-share slack multiplier | 1.0–1.2 | Tune until a "fair" schedule is achievable at all |
 | `p` | Fairness exponent | 2 | Try 1 and 3 on real data and compare the worst-off student |
 | — | Front-load weight (§4.4) | low | Raise until marking distribution is acceptable, watch week-1 student load |
-| — | Session-2 fatigue (§4.3) | — | Scale from session 1's finish time, not a flat constant |
+| — | Session-2 fatigue (§4.3) | — | Fixed per band; sittings start at set clock times |
 | — | Co-freedom weight (§4.5) | low | Watch that it does not starve invigilation cover |
 
 **Tuning needs the penalty-breakdown view** (`PORT-NOTES.md`, inherited bug
@@ -103,10 +114,16 @@ one of the same subject. Currently `SF` is per subject only.
 - **Venues are uniform at 25 pax, one invigilator each.** So venues and
   invigilators are the same count: `rooms(p) = ceil(|cohort(p)| / 25)`.
   No venue file — constants only (`DESIGN.md` §1).
-- **Sessions are 40-minute periods**, two sittings per day.
+- **Sessions are 40-minute periods**, two sittings per day, at fixed clock
+  times **per grade band**: Gr12 08:00/13:00, Gr10–11 07:30/12:30, Gr8–9
+  later (TBC). Bands overlap in wall-clock time (`DESIGN.md` §1.2).
+- **Exam windows are nested and end together** — Gr10–12 weeks 1–6, Gr8–9
+  weeks 3–6. The fairness baseline `D_s` is per band (§4.1).
+- **Session 2 starts at a fixed time**, so a session-1 paper must fit the
+  5-hour gap (≤ 3 h 45 writing). Hard constraint, not a cost.
 - **Duration is per paper**, from the xlsx, and carries **+20 min per
   hour** of overhead. So occupancy = writing time × 4/3, and every
-  exam-hour is exactly 2 periods (`DESIGN.md` §1.2).
+  exam-hour is exactly 2 periods (`DESIGN.md` §1.3).
 - **Rooms are ample** — enough to seat every student at once, plus spares.
   The scarce resource is invigilators, not space (`DESIGN.md` §1).
 - Paper key is `(subjectCode, grade, paperNo)` — per grade.
