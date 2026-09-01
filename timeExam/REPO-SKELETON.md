@@ -45,7 +45,7 @@ timeexam/
 ├── constants/
 │   ├── subjects.json       SF, MF per subject
 │   ├── weights.json        λ_w, α, p, K, term weights — tunable, not code
-│   └── venues.json         V, VENUE_PAX=25, R=25, PERIOD=40
+│   └── venues.json         V, VENUE_PAX=25, R=25, PERIOD=40, OVERHEAD=4/3
 │
 ├── src/
 │   ├── model/              pure domain, no I/O, no Qt
@@ -117,22 +117,24 @@ verifier is the only safety net.
    `timetable.json` and print them. Proves the schema and the cohort
    derivation before anything depends on it.
 2. **`score/rooms` as a standalone diagnostic** — for each paper print
-   `ceil(|cohort|/25)`, and total the demand per grade. Then compare
-   against `V` and the number of sittings in the horizon. This is a few
-   hours' work and it answers the question everything else depends on:
-   *how much slack does the schedule actually have?* If total room-demand
-   is near total room-supply, the problem is a feasibility search and
-   steps 3–4 should be re-scoped before they are built.
+   `ceil(|cohort|/25)` rooms and `rooms × periods` invigilator-periods,
+   then total the invigilator-period demand across all papers and divide by
+   the horizon's teacher-periods of supply. This is a few hours' work and
+   it answers the question everything else depends on: *how much slack is
+   there in teacher time?* Rooms are ample (`DESIGN.md` §1), so this is a
+   staffing calculation, not a space one. If demand approaches supply, the
+   problem is a feasibility search with a fairness tie-break, and steps 3–4
+   should be re-scoped before they are built.
 3. `score/student_load` + `objective` (student term only) — scoring a
    *hand-made* schedule. Verifiable by hand on a fixture.
-4. `search/` with the student term alone, gated on `rooms(slot) ≤ V` —
+4. `search/` with the student term alone, gated on invigilator supply —
    first real output. Judge whether the fairness model produces schedules
    that look fair before adding terms.
 5. `score/marking_load` + the teacher terms.
 6. `invigilation/` + feedback loop.
 7. Export, then UI.
 
-**Step 2 before step 3, deliberately.** The venue constraint determines
+**Step 2 before step 3, deliberately.** Invigilator supply determines
 whether the fairness objective has room to operate at all; discovering it
 is binding *after* building the objective would waste the expensive part.
 

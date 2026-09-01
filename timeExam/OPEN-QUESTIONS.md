@@ -4,19 +4,25 @@ Grouped by whether they block implementation.
 
 ## Blocking — needed before the relevant module can be written
 
-**How many exam venues (`V`)?** One number, and probably the most
-consequential unknown in the whole design. At 25 candidates per venue, a
-200-candidate grade paper needs 8 venues and 8 invigilators simultaneously.
-If `V` is around 10, two large papers can never share a sitting and the
-schedule is close to forced — which would make the §4 fairness objective a
-tie-breaker rather than the main event, and would change where the
-implementation effort should go (construction and feasibility, not weight
-tuning). Get this before building §4.
+**Who can invigilate, and how many are there?** Now the binding constraint
+(`DESIGN.md` §1): rooms are ample, but every room needs a teacher who is
+therefore not marking. Needed: the pool size, and whether non-teaching
+staff, HODs or senior management count toward it. If the pool is materially
+larger than the teaching staff, the constraint loosens and §4 has real
+freedom; if it is the teaching staff alone, expect it to bind.
+
+**Can a teacher invigilate during a period they would otherwise teach?**
+Junior grades usually carry on with normal lessons during senior exams. If
+invigilators must come only from teachers free in that period, supply is
+much tighter than headcount suggests, and `timetable.json` already holds
+what is needed to compute it per period.
 
 **Are venues really uniform at 25?** The design assumes every venue holds
 exactly 25. If there is one hall holding 150 plus a set of classrooms, the
-`rooms(p) = ceil(cohort/25)` model understates capacity badly and a venue
-list becomes necessary after all.
+`rooms(p) = ceil(cohort/25)` model understates capacity — harmless for
+rooms, which are slack, but it would *overstate* invigilator demand, which
+is not. Worth confirming, since one invigilator per 25 candidates in a
+150-seat hall means six invigilators in one room, not six rooms.
 
 **Does "exam times in the xlsx" mean duration or fixed sittings?** Read as
 duration (`DESIGN.md` §1). If a substantial number of papers arrive with
@@ -47,7 +53,7 @@ be tuned against real output.
 
 | Symbol | What | Seed | How to settle |
 |---|---|---|---|
-| `V` | Exam venues available | **needed** | Count them — see Blocking above; gates whether §4 matters |
+| — | Invigilator pool size | **needed** | See Blocking above; gates whether §4 matters |
 | `K` | Marking turnaround, days | 5? | Ask HODs what turnaround they actually work to |
 | `R` | Candidates per invigilator | **25** | Settled — one invigilator per venue |
 | `SF` | Stress factor per subject, 1–5 | — | Teacher judgement per subject; this is a policy input |
@@ -97,8 +103,12 @@ one of the same subject. Currently `SF` is per subject only.
 - **Venues are uniform at 25 pax, one invigilator each.** So venues and
   invigilators are the same count: `rooms(p) = ceil(|cohort(p)| / 25)`.
   No venue file — constants only (`DESIGN.md` §1).
-- **Sessions are 40-minute periods**, two sittings per day; a paper
-  occupies `ceil(duration / 40)` consecutive periods (`DESIGN.md` §2.4).
+- **Sessions are 40-minute periods**, two sittings per day.
+- **Duration is per paper**, from the xlsx, and carries **+20 min per
+  hour** of overhead. So occupancy = writing time × 4/3, and every
+  exam-hour is exactly 2 periods (`DESIGN.md` §1.2).
+- **Rooms are ample** — enough to seat every student at once, plus spares.
+  The scarce resource is invigilators, not space (`DESIGN.md` §1).
 - Paper key is `(subjectCode, grade, paperNo)` — per grade.
 - Marking is consumed at a flat rate over `K` days.
 - Session 2 is a cost, not a gate (`DESIGN.md` §4.3).

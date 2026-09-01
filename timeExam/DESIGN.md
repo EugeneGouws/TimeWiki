@@ -40,12 +40,12 @@ anticipate:
 
 And one thing the brief did not anticipate:
 
-6. **Venue count is a hard constraint, and probably the dominant one.**
-   With 25 candidates per venue and one invigilator each, a grade-wide
-   paper consumes eight rooms at once. Depending on `V`, the feasible
-   region may be so tight that the fairness objective is only breaking
-   ties. See §1 and §3.3 — establish `V` before investing in weight
-   tuning.
+6. **Invigilator supply is the binding constraint.** Rooms are ample —
+   enough to seat the school at once — but every room in use needs a
+   teacher who is therefore not marking. One invigilator per 25 candidates
+   means seating a whole grade occupies eight teachers for the paper's full
+   length. The §4 objective is really negotiating over teacher-time, not
+   space. See §1 and §3.3.
 
 Two conflicts in the brief that were not stated, and are now explicit
 weighted terms rather than rules (§4.4, §4.5):
@@ -80,19 +80,54 @@ implementing the reader; do not assume the documented shape is current.
 | `VENUE_PAX` | 25 | Maximum candidates per venue |
 | `R` | 25 | Candidates per invigilator — one per venue |
 | `PERIOD` | 40 min | Session granularity |
-| `V` | **unknown** | Number of exam venues available — see below |
+| `OVERHEAD` | +20 min / hour | Added to writing time — see §1.2 |
+| `V` | ample | Rooms for every student at once, plus spares |
 
-Because `R == VENUE_PAX`, invigilators and venues are the same count:
-a paper needs `ceil(|cohort| / 25)` of each, simultaneously, for its whole
-duration.
+Because `R == VENUE_PAX`, invigilators and venues are the same count: a
+paper needs `ceil(|cohort| / 25)` of each, simultaneously, for its whole
+occupancy.
 
-> **`V` is probably the binding constraint on the entire schedule.** A
-> grade-wide paper of 200 candidates consumes 8 venues and 8 invigilators
-> at once. If the school has ~10 venues, two large papers cannot share a
-> sitting at all, and placement is forced long before any fairness term
-> gets a say. Get this number early — it determines whether the objective
-> function in §4 has any freedom to work with, or whether the problem is
-> really a feasibility search with a fairness tie-break.
+> **Rooms are not scarce; invigilators are.** `V` is large enough to seat
+> every student simultaneously, so the room constraint is slack almost
+> everywhere. But every room in use needs a teacher standing in it, and
+> that teacher cannot be marking (§3.2). Seating the whole school at once
+> would take `ceil(N_students / 25)` invigilators — for 1000 students, 40
+> teachers occupied at the same moment. **Invigilator supply is the binding
+> constraint of this design**, and it is what the §4 objective is really
+> negotiating against.
+
+Rooms are still counted (§3.3) — they are what *determines* invigilator
+demand — but `rooms(slot) ≤ V` becomes a cheap guard rather than the
+dominant gate.
+
+### §1.2 Duration and occupancy
+
+The xlsx gives each paper's **writing time**. A paper occupies its venue
+for longer than that:
+
+```
+occupancy(p) = duration(p) × 4/3        // +20 min per hour
+periods(p)   = occupancy(p) / 40
+```
+
+This lands exactly on the period grid — **every exam-hour is 2 periods**:
+
+| Writing time | Occupancy | Periods |
+|---|---|---|
+| 1 h | 80 min | 2 |
+| 1½ h | 120 min | 3 |
+| 2 h | 160 min | 4 |
+| 3 h | 240 min | 6 |
+
+Any duration in whole half-hours yields a whole number of periods, which is
+almost certainly why the period is 40 minutes. No rounding logic is needed
+unless papers arrive with odd durations — validate on import and reject or
+round up explicitly rather than silently.
+
+**Use the right one of the two.** Occupancy drives venue and
+invigilator-period commitment (§3.3, §6). Writing time drives student
+fatigue (§4.3). Conflating them overstates student load on long papers and
+understates invigilator cost on short ones.
 
 **Assumption to confirm:** "exam times in the xlsx" is read here as each
 paper's **duration**, not a pre-assigned date and time. If some papers
@@ -182,7 +217,8 @@ detection)" for exactly this purpose (`raw/sources/rollover.md:20`).
 - A **sitting** starts on a period boundary. Two sittings per day: session 1
   and session 2.
 - `Slot = (day, sitting)`. A paper placed in a sitting occupies
-  `ceil(duration / 40)` consecutive periods from that sitting's start.
+  `periods(p)` consecutive periods from that sitting's start, where
+  `periods(p)` is computed from occupancy, not raw writing time (§1.2).
 - Week index derives from day index; weeks are a *structure*, never a
   processing order (§5).
 
@@ -191,16 +227,18 @@ at the same moment; each runs for its own duration. This is how exam
 sittings actually work, and it has a consequence worth stating:
 
 > **Session 2's start time is determined by session 1's longest paper.**
-> Not by policy — by arithmetic. Put a 3-hour paper in session 1 and
-> session 2 cannot begin until it and the changeover are done.
+> Not by policy — by arithmetic. A 3-hour paper in session 1 occupies 6
+> periods (§1.2), so session 2 cannot begin before then. The turnaround is
+> already inside that figure, since occupancy carries the +20 min/hour.
 
 This is the real reason "use session 2 only when session 1 is full" felt
 right, and it is better expressed as the arithmetic it actually is (§4.3)
 than as a gate.
 
-**Invigilator and venue occupancy is measured in periods**, which finally
+**Invigilator and venue commitment is measured in periods**, which finally
 gives invigilation a unit: a teacher watching a 3-hour paper is committed
-for 5 periods, and that is what trades off against their marking backlog.
+for 6 periods — three times a 1-hour paper's 2 — and that is what trades
+off against their marking backlog.
 
 **Link group** — a set of papers that must be placed together with a fixed
 internal arrangement. Covers three cases with one mechanism:
@@ -266,11 +304,21 @@ demand and will produce infeasible schedules.
 
 Two constraints follow:
 
-- **Hard:** `rooms(slot) ≤ V` for every slot. This is a genuine capacity
-  constraint and, per §1, likely the binding one.
-- **Staffing:** `rooms(slot)` invigilators must be free for the duration of
-  the sitting — met by the matching in §6, and costed in periods
-  (`rooms(p) × ceil(duration(p)/40)` invigilator-periods).
+- **Rooms — a cheap guard.** `rooms(slot) ≤ V`. Rarely binding, since `V`
+  seats the whole school (§1). The one way it bites is **ceiling waste**:
+  twenty papers of 5 candidates need 20 rooms but only 100 seats' worth of
+  students. A sitting crowded with small subjects can therefore exceed `V`
+  while looking half-empty by headcount. Keep the check; expect it to pass.
+- **Invigilators — the real constraint.** `rooms(slot)` teachers must be
+  free for the sitting's whole occupancy, costed as
+  `rooms(p) × periods(p)` **invigilator-periods**. This is what actually
+  limits how much can run concurrently, and it is what §6 must satisfy.
+
+The same ceiling waste that threatens rooms costs invigilators one-for-one,
+and there it is never slack: those 20 small papers need 20 teachers
+standing in 20 rooms. **Consolidating small papers into shared sittings
+does not help** — papers cannot share a venue — so the lever is placing
+small papers where teachers are free, not packing them together.
 
 This is the one place cohort size legitimately enters the objective, and it
 is why cohort size must not *also* drive student stress (§0.1).
@@ -421,13 +469,14 @@ landscape proves rugged). Moves:
 - move a paper to a free slot
 - move a link group atomically (§2.4)
 
-**Every move is gated on `rooms(slot) ≤ V`** (§3.3) before it is scored.
-With `V` likely binding (§1), most candidate moves will be rejected on this
-test, so check it first and cheaply — keep a running `rooms` count per slot
-and compare before computing any objective delta. If the feasible
-neighbourhood turns out to be very sparse, the search is really a
-feasibility problem with a fairness tie-break, and construction matters far
-more than improvement.
+**Every move is gated on invigilator availability before it is scored** —
+enough teachers free for `rooms(slot)` posts, none of them over their
+marking-backlog cap (§3.2). Rooms are checked too (`rooms(slot) ≤ V`) but
+will almost always pass (§3.3).
+
+Keep a running `rooms` count and a free-teacher count per slot so the gate
+is a comparison, not a recomputation, and test it before computing any
+objective delta.
 
 **Incremental delta evaluation is the load-bearing element of this design.**
 Maintain per-student per-day load arrays and per-teacher backlog arrays;
@@ -453,10 +502,18 @@ teachers to sessions.
   backlog `B_t(d)` — busy markers get fewer duties.
 - Hard exclusions: own-subject invigilation; backlog over cap.
 - Demand per slot = `rooms(slot)` from §3.3.
-- Duty is costed in **invigilator-periods**, not sittings — a 5-period
-  paper is five times the commitment of a 1-period one, and fairness across
-  teachers must be measured in periods or it will quietly favour whoever
-  draws the short papers.
+- Duty is costed in **invigilator-periods** (from occupancy, §1.2), not
+  sittings — a 6-period paper is three times the commitment of a 2-period
+  one, and fairness across teachers must be measured in periods or it will
+  quietly favour whoever draws the short papers.
+
+**This phase is where the design is most likely to fail feasibility.** With
+rooms ample and invigilators scarce (§1), the matching is the step that
+discovers a placement cannot be staffed. Two guards worth building in from
+the start: report the tightest slot (demand ÷ supply) so the failure is
+legible, and make the surrogate during placement conservative enough that
+the matching rarely fails outright — a placement that scores well and then
+cannot be staffed wastes a whole optimisation run.
 
 This is solvable exactly and quickly for a fixed timetable, which is why it
 must not live inside the local-search inner loop.
