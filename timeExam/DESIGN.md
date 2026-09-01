@@ -4,12 +4,26 @@ Draft 1, 2026-09-01. Supersedes the TimePyBling scoring model.
 
 ## §0 Goal, and what changed from the brief
 
-**Goal:** produce an exam schedule that is *as fair as possible for as many
-students as possible*, while keeping teacher marking load survivable and
-invigilation covered.
+**The problem is three-fold, in strict order:**
 
-That goal is a **coverage** objective, not a sum-minimisation one, and it
-drives most of the design decisions below. Five changes from the original
+| | Requirement | Nature |
+|---|---|---|
+| **1** | An exam timetable with **no student clashes** | Hard constraint — §2.5 |
+| **2** | The schedule is **fair** | Objective — §4 |
+| **3** | That fairness can be **proven to a parent who questions it** | Explainability — §7 |
+
+Requirement 1 is feasibility and is non-negotiable: a schedule that clashes
+is not a worse schedule, it is not a schedule. Requirement 2 is what the
+optimisation is for. Requirement 3 is the one most easily forgotten in the
+design and hardest to retrofit — it constrains the *choice* of fairness
+measure, not just the reporting, because a measure that cannot be explained
+to a parent cannot discharge it however rigorous it is.
+
+Teacher marking load and invigilation cover sit **below all three** (§4.0).
+
+The fairness goal, in the user's words, is *as fair as possible for as many
+students as possible* — a **coverage** objective, not a sum-minimisation
+one, and that drives most of what follows. Five changes from the original
 brief, each with its reason, plus one constraint the brief did not
 anticipate:
 
@@ -62,6 +76,7 @@ This gives a **strict priority order**, not a set of weights to blend:
 
 | Rank | Term | Scope |
 |---|---|---|
+| **Hard** | **No student clash** (§2.5) | Per grade |
 | Hard | Invigilator availability, rooms ≤ `V` | Cross-grade, wall clock |
 | **Stage A** | Student fairness (§4.1) | **Per grade, separable** |
 | **Stage B** | Marking, invigilation, front-load, co-freedom (§4.2–4.5) | Cross-grade |
@@ -361,6 +376,53 @@ Link groups are **composite placeable units**: the optimiser moves the whole
 group atomically. A move can therefore never break a link, and no repair
 pass is needed for them. This is strictly better than treating linkage as a
 constraint that gets violated and then fixed.
+
+---
+
+### §2.5 Hard constraints
+
+Collected in one place, since they are otherwise scattered through the
+spec. A schedule violating any of these is infeasible, not merely poor.
+
+**1. No student clash — the primary constraint.**
+
+```
+for every student s, for every slot k:
+    | { p : s ∈ cohort(p) and slot(p) = k } | ≤ 1
+```
+
+A student never sits two papers in the same sitting. Notes:
+
+- **A clash is same-*slot*, not same-day.** Two papers on one day in
+  different sittings is legal, and is exactly what the linked-paper
+  requirement (§2.4) asks for.
+- Because a learner belongs to one grade and papers are keyed per grade,
+  this constraint lives **entirely inside a grade's model** — it is
+  separable like the student objective, and Stage A carries it.
+- It is expressed over cohort membership, never over subject names. Two
+  papers clash for a student precisely when that student is in both
+  cohorts.
+- In CP-SAT this is an `AddAtMostOne` over each student's papers per slot,
+  or equivalently an all-different over the slots of a student's papers.
+  Collapsing students into subject-set classes (§5) collapses these
+  constraints too: one class contributes one set, not one per student.
+
+**2. Session-1 papers must fit before session 2** (§1.2). With max paper
+length 3 h against a 5-hour gap this always holds, so it is an import-time
+validation rather than a live constraint.
+
+**3. Rooms:** `rooms(slot) ≤ V` (§3.3). Rarely binding; kept as a guard
+against ceiling waste.
+
+**4. Invigilator availability:** enough free, non-marking-capped teachers to
+staff concurrent demand at every instant (§3.3, §3.4). This is the binding
+resource constraint.
+
+**5. Link groups** hold together atomically (§2.4). Structural — enforced by
+representation rather than checked.
+
+Constraints 1 and 2 are per grade; 3 and 4 are cross-grade and evaluated on
+the wall clock.
 
 ---
 
@@ -859,6 +921,95 @@ converge; more suggests the surrogate is too weak.
 
 ---
 
+## §7 Defensibility — proving fairness to a parent
+
+Requirement 3 (§0) is not the same as requirement 2, and conflating them is
+the main risk in this design. A CP-SAT optimality certificate is a proof
+for an **OR audience**. A parent is a different audience asking a different
+question, and "the solver returned OPTIMAL" answers neither.
+
+**The question actually asked** is some form of:
+
+> *"Why does my child write three exams in three days when their friend has
+> theirs spread out?"*
+
+Note what it is not. It is not a request for a global metric — it is a
+claim about **one specific student**, usually relative to another. Any
+defence that can only speak about aggregates will fail, however rigorous.
+
+### What can honestly be claimed
+
+Because Stage A is solved to proven optimality, a strong statement is
+available:
+
+> No alternative timetable improves this student's spread without making
+> another student's worse — measured by a standard published before the
+> schedule was drawn.
+
+That is a real Pareto-style claim and it is exactly what optimality buys.
+Two things must be true for it to survive scrutiny, and both are design
+constraints, not documentation tasks:
+
+**1. The measure must be published in advance.** A fairness standard
+announced *after* a complaint looks fitted to the answer, and is
+indefensible whatever its mathematical merit. `SF` values, window weights
+and the fair-share definition should be circulated — to staff at minimum,
+ideally to parents — **before** the timetable is generated. This is the
+single cheapest thing that makes the claim hold, and it cannot be
+retrofitted.
+
+**2. The measure must be explicable in a sentence.** A parent will not
+follow a convex penalty over sliding windows. They will follow: *"we count
+how heavy each day is for each child, using a difficulty rating per
+subject, and we make sure no child's worst stretch is worse than it has to
+be."* If the chosen formalism cannot be compressed to something like that,
+it is the wrong formalism for requirement 3 — this is a genuine constraint
+on §4.1, not merely on how it is described.
+
+### What must NOT be claimed
+
+- **Not** "this is the fairest possible timetable." It is optimal for a
+  stated measure (§4.0.2). Overclaiming here is how the whole exercise
+  loses credibility on first challenge.
+- **Not** that every student got an equal deal. They demonstrably did not —
+  subject combinations differ, and some are intrinsically harder to spread.
+  The claim is about *unavoidability*, not equality.
+- **Not** that the schedule cannot be improved. It cannot be improved *on
+  this measure without cost to someone else*. Those are different
+  statements and the difference matters when challenged.
+
+### The artefact: a per-student fairness report
+
+The output is therefore not only a timetable. Every run should emit, per
+student:
+
+- their papers, dates, and daily load;
+- their worst 2/3/4/5-day window against their own fair share;
+- their percentile against their grade — the comparative question is the
+  one being asked;
+- **why it could not be better**: which constraint or competing student
+  blocks the obvious improvement.
+
+The last line is the one that answers a parent, and it is worth building
+deliberately. A cheap and rigorous version: take the student's worst
+window, try each single-paper move that would relieve it, and report what
+each move breaks — a clash, an invigilator shortfall, or another student
+pushed above their own fair share. That is a concrete, checkable answer to
+"why not just move it", generated automatically rather than argued.
+
+### Consequences for the build
+
+- `verify/` (`REPO-SKELETON.md`) should produce this report, not merely
+  pass or fail. It is an independent re-derivation from the output
+  schedule, which is exactly what makes it credible.
+- The report is **evidence, not marketing** — it must be able to show a
+  student got a poor deal, and say why it was unavoidable. A report that
+  can only report success proves nothing.
+- Emit it for every run, not on request. If it is generated only when
+  someone complains, it looks like a defence rather than a standard.
+
+---
+
 ## Requirements traceability
 
 Every requirement from the original brief:
@@ -874,6 +1025,8 @@ Every requirement from the original brief:
 | 7 | Two conflicting heuristics: marking vs writing | §3.1, §3.2, §4.1, §4.2 |
 | 8 | Balance 2/3/4/5 consecutive days, then week, then totality | §4.1 — totality is constant per student, becomes the fair baseline |
 | 9 | Threshold, spread excess over other students | §4.1 — **convex penalty gives this for free** |
+| — | No student clashes | §2.5 — the primary hard constraint |
+| — | Fairness provable to parents | §7 — explainability, distinct from §4.0.2 optimality |
 | 10 | Invigilation vs marking; cannot mark and invigilate | §3.2 backlog model, §6 |
 | 11 | Big subjects mark together; department free together | §4.5 |
 | 12 | Heaviest marking earlier | §4.4 |

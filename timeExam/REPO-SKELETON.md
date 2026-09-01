@@ -94,7 +94,7 @@ timeexam/
 │   │   ├── moves.py            swap, relocate, move-link-group
 │   │   └── deltas.py           incremental update on a move
 │   │
-│   ├── verify/             independent checker — see below
+│   ├── verify/             independent checker + parent report (§7)
 │   └── cli.py              entry point, run modes
 │
 ├── tests/
@@ -126,8 +126,11 @@ over randomised inputs. Treat a failure here as a correctness bug, not a
 tuning issue.
 
 **`verify/` must share no code with `score/`.** An independent checker that
-re-derives clashes, invigilation shortfalls and load statistics from output
-schedule alone. This is a suite-wide principle — `ClashDetector` as an
+re-derives clashes, invigilation shortfalls and load statistics from the
+output schedule alone. It also emits the **per-student fairness report**
+(`DESIGN.md` §7) — the artefact that answers a questioning parent. That it
+is an independent re-derivation is precisely what makes the report
+credible. This is a suite-wide principle — `ClashDetector` as an
 independent verifier is the one concept the timemath project imported across
 its firewall from TimeEduSuite
 (`wiki/concepts/independent-verification.md`).
@@ -163,7 +166,11 @@ verifier is the only safety net.
    it is the fallback claim if the gap will not close.
 6. `score/marking` + `solve/stage_b` — teacher terms with `Z_stu` pinned.
 7. `invigilation/` matcher + feedback.
-8. Export, then UI.
+8. `verify/` — clash re-derivation plus the per-student fairness report
+   (`DESIGN.md` §7). Not last-minute polish: requirement 3 is a third of
+   the problem, and the report shapes what the objective must be able to
+   explain.
+9. Export, then UI.
 
 **`heuristic/` is contingency only** — build it if step 4 unexpectedly
 fails, not before. Leave the directory out of the initial repo rather than
